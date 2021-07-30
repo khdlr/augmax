@@ -1,0 +1,1 @@
+INSTAL_REQUIRES = ["jax>=0.1"]

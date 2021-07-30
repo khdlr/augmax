@@ -13,52 +13,47 @@ from . import utils
 
 class LazyCoordinates:
     _current_transform: jnp.ndarray = jnp.eye(3)
-    _current_pullback: jnp.ndarray = jnp.eye(3)
     _dirty: bool = False
     _coordinates: jnp.ndarray
-    _shape: Sequence[int]
+    shape: tuple[int, int]
 
-    def __init__(self, shape: Sequence[int]):
-        self._shape = shape
-        H, W = self._shape
-        self._coordinates = jnp.mgrid[0:H, 0:W] - jnp.array([H/2, W/2]).reshape(2, 1, 1)
+    def __init__(self, shape: tuple[int, int]):
+        self.shape = shape
 
     def get(self) -> jnp.ndarray:
+        H, W = self.shape
+        if not hasattr(self, '_coordinates'):
+            self._coordinates = jnp.mgrid[0:H, 0:W] - jnp.array([H/2, W/2]).reshape(2, 1, 1)
         if self._dirty:
-            coords = jnp.concatenate([self._coordinates, jnp.ones([1, *self._shape])])
-            transform = self._current_pullback @ self._current_transform
-            transformed = jnp.tensordot(transform, coords, axes=1)
+            coords = jnp.concatenate([self._coordinates, jnp.ones([1, *self.shape])])
+            transformed = jnp.tensordot(self._current_transform, coords, axes=1)
             yx, z = jnp.split(transformed, [2])
             self._coordinates = yx / z
             self._dirty = False
             self._current_transform = jnp.eye(3)
-            self._current_pullback = jnp.eye(3)
         return self._coordinates
 
-    def crop(self, x0: float, y0: float, w: int, h: int):
-        H, W = self._shape
-        print(f'cropping rect at ({x0},{y0}) with w={w}, h={h}')
+    def crop(self, h: int, w: int):
+        if hasattr(self, '_coordinates'):
+            H, W = self.shape
+            y0 = int(math.floor((H-h)/2))
+            x0 = int(math.floor((W-w)/2))
+            self._coordinates = self._coordinates[:, y0:y0+h, x0:x0+w]
+            print('y0:', y0, 'x0:', x0)
+        # self.shape = self._coordinates.shape[1:]
 
-        y0 = int(math.floor(y0 + H/2))
-        x0 = int(math.floor(x0 + W/2))
-
-        self._coordinates = self._coordinates[:, y0:y0+h, x0:x0+w]
-        self._shape = self._coordinates.shape[1:]
+        self.shape = (h, w)
 
     def push_transform(self, M: jnp.ndarray):
         assert M.shape == (3, 3)
         self._current_transform = M @ self._current_transform
         self._dirty = True
 
-    # def push_pullback(self, M: jnp.ndarray):
-    #     assert M.shape == (3, 3)
-    #     self._current_pullback = self._current_pullback @ M
-    #     self._dirty = True
-
     def update_coordinates(self, coordinates: jnp.ndarray):
         assert not self._dirty
         self._coordinates = coordinates
-        self._shape = coordinates.shape[1:]
+        _, H, W = coordinates.shape
+        self.shape = (H, W)
 
 
 class GeometricTransformation(Transformation):
@@ -67,12 +62,16 @@ class GeometricTransformation(Transformation):
         return coordinates
 
     def apply(self, image: jnp.ndarray, rng: jnp.ndarray) -> jnp.ndarray:
-        coordinates = LazyCoordinates(image.shape[:2])
+        H, W, _ = image.shape
+        coordinates = LazyCoordinates((H, W))
         self.transform_coordinates(coordinates, rng)
 
         H, W, _ = image.shape
         coordinates = coordinates.get() + jnp.array([H/2, W/2]).reshape(2, 1, 1)
         return utils.resample_image(image, coordinates, order=1)
+
+    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+        return input_shape
 
 
 class GeometricChain(GeometricTransformation):
@@ -80,10 +79,23 @@ class GeometricChain(GeometricTransformation):
         self.transforms = transforms
 
     def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
-        for transform in reversed(self.transforms):
-            rng, subkey = jax.random.split(rng)
+        shape_chain = [coordinates.shape]
+        for transform in self.transforms[:-1]:
+            shape_chain.append(transform.output_shape(shape_chain[-1]))
+
+        subkeys = jax.random.split(rng, len(self.transforms))
+        for transform, input_shape, subkey in zip(reversed(self.transforms), reversed(shape_chain), subkeys):
+            print('input_shape:', input_shape)
+            coordinates.shape = input_shape
             transform.transform_coordinates(coordinates, subkey)
+
         return coordinates
+
+    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+        shape = input_shape
+        for transform in self.transforms:
+            shape = transform.output_shape(shape)
+        return shape
 
 
 class HorizontalFlip(GeometricTransformation):
@@ -114,14 +126,31 @@ class VerticalFlip(GeometricTransformation):
         coordinates.push_transform(transform)
 
 
+class Rotate90(GeometricTransformation):
+    def __init__(self):
+        pass
+
+    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+        params = jax.random.bernoulli(rng, 0.5, [2])
+        flip = 1. - 2. * params[0] 
+        rot = params[1]
+
+        transform = jnp.array([
+            [flip * rot,       flip * (1.-rot), 0],
+            [flip * (-1.+rot), flip * rot,      0],
+            [0,                0,               1]
+        ])
+        coordinates.push_transform(transform)
+
+
 class Rotate(GeometricTransformation):
     def __init__(self,
             angle_range: Union[tuple[float, float], float]=(-30, 30),
             p: float = 1.0):
-        if isinstance(angle_range, float):
-            self.theta_min, self.theta_max = np.deg2rad([-angle_range, angle_range])
-        else:
+        if hasattr(angle_range, '__iter__'):
             self.theta_min, self.theta_max = np.deg2rad(angle_range)
+        else:
+            self.theta_min, self.theta_max = np.deg2rad([-angle_range, angle_range])
         self.probability = p
 
     def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
@@ -136,17 +165,18 @@ class Rotate(GeometricTransformation):
 
 
 class CenterCrop(GeometricTransformation):
-    def __init__(self, output_shape: Union[tuple[int, int], int]):
-        if isinstance(output_shape, int):
-            self.output_shape = (output_shape, output_shape)
-        else:
-            self.output_shape = output_shape
+    width: int
+    height: int
+
+    def __init__(self, width: int, height: int = None):
+        self.width = width
+        self.height = width if height is None else height
 
     def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
-        H_, W_ = self.output_shape
-        y0 = -H_ / 2
-        x0 = -W_ / 2
-        coordinates.crop(x0, y0, W_, H_)
+        coordinates.crop(self.height, self.width)
+
+    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+        return (self.height, self.width)
 
 
 class Translate(GeometricTransformation):
@@ -167,15 +197,15 @@ class Crop(GeometricTransformation):
     def __init__(self, x0, y0, w, h):
         self.x0 = x0
         self.y0 = y0
-        self.w  = w
-        self.h  = h
+        self.width = w
+        self.height = h
 
     def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
-        H, W = coordinates._shape
-        coordinates.crop(-self.w / 2, -self.h / 2, self.w, self.h)
+        H, W = coordinates.shape
+        coordinates.crop(self.height, self.width)
 
-        center_x = self.x0 + self.w / 2 - W / 2
-        center_y = self.y0 + self.h / 2 - H / 2
+        center_x = self.x0 + self.width / 2 - W / 2
+        center_y = self.y0 + self.height / 2 - H / 2
 
         # self.dx/dy is in (0,0) -- (H,W) reference frame
         # => push it to (-H/2, -W/2) -- (H/2, W/2) reference frame
@@ -187,6 +217,89 @@ class Crop(GeometricTransformation):
             [0, 0,          1]
         ])
         coordinates.push_transform(transform)
+
+    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+        return (self.height, self.width)
+
+
+class RandomCrop(GeometricTransformation):
+    width: int
+    height: int
+
+    def __init__(self, width: int, height: int = None):
+        self.width = width
+        self.height = width if height is None else height
+
+    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+        H, W = coordinates.shape
+
+        limit_y = (H - self.height) / 2
+        limit_x = (W - self.width) / 2
+
+        center_y, center_x = jax.random.uniform(rng, [2],
+                minval=jnp.array([-limit_y, -limit_x]),
+                maxval=jnp.array([limit_y, limit_x]))
+
+        coordinates.crop(self.height, self.width)
+
+        transform = jnp.array([
+            [1, 0,  center_y],
+            [0, 1,  center_x],
+            [0, 0,          1]
+        ])
+        coordinates.push_transform(transform)
+
+    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+        return (self.height, self.width)
+
+
+class RandomSizedCrop(GeometricTransformation):
+    width: int
+    height: int
+    min_logzoom: float
+    max_logzoom: float
+
+    def __init__(self,
+            width: int, height: int = None, zoom_range: tuple[float, float] = (0.5, 2.0),
+            prevent_underzoom: bool = False):
+        self.width = width
+        self.height = width if height is None else height
+        self.min_logzoom = math.log(zoom_range[0])
+        self.max_logzoom = math.log(zoom_range[1])
+        self.prevent_underzoom = prevent_underzoom
+
+    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+        H, W = coordinates.shape
+        key1, key2 = jax.random.split(rng)
+
+        if self.prevent_underzoom:
+            min_logzoom = max(self.min_logzoom, math.log(self.height / H), math.log(self.width / W))
+            max_logzoom = max(self.max_logzoom, min_logzoom)
+        else:
+            min_logzoom = self.min_logzoom
+            max_logzoom = self.max_logzoom
+
+        log_zoom  = jax.random.uniform(key1, minval=min_logzoom, maxval=max_logzoom)
+        zoom = jnp.exp(log_zoom)
+
+        limit_y = ((H/zoom) - self.height) / 2
+        limit_x = ((W/zoom) - self.width) / 2
+
+        center_y, center_x, = jax.random.uniform(key2, [2],
+                minval=jnp.array([-limit_y, -limit_x]),
+                maxval=jnp.array([limit_y, limit_x]))
+
+        coordinates.crop(self.height, self.width)
+
+        transform = jnp.array([
+            [1/zoom,      0,  center_y],
+            [     0, 1/zoom,  center_x],
+            [     0,      0,         1]
+        ])
+        coordinates.push_transform(transform)
+
+    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+        return (self.height, self.width)
 
 
 class Warp(GeometricTransformation):
