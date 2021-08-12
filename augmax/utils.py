@@ -23,3 +23,11 @@ def resample_image(image: Tensor, coordinates: Tensor, order: int=1, mode: str='
 
     return resampled
 
+
+def log_uniform(key, shape=(), dtype=jnp.float32, minval=0.5, maxval=2.0):
+    logmin = jnp.log(minval)
+    logmax = jnp.log(maxval)
+
+    sample = jax.random.uniform(key, minval=logmin, maxval=logmax)
+
+    return  jnp.exp(sample)

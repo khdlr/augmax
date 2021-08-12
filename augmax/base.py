@@ -11,12 +11,13 @@ class Transformation(ABC):
         return image
 
 
-class TransformationChain(Transformation):
+class Chain(Transformation):
     def __init__(self, *transforms: Transformation):
         self.transforms = transforms
 
     def apply(self, image: jnp.ndarray, rng: jnp.ndarray) -> jnp.ndarray:
         subkeys = jax.random.split(rng, len(self.transforms))
         for transform, subkey in zip(self.transforms, subkeys):
+            print(transform)
             image = transform.apply(image, subkey)
         return image
