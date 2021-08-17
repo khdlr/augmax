@@ -60,9 +60,15 @@ class ChannelShuffle(ColorspaceTransformation):
     Args:
         p (float): Probability of applying the transformation
     """
+    def __init__(self, p: float = 0.5):
+        self.probability = p
 
     def pixelwise(self, pixel: jnp.ndarray, rng: jnp.ndarray) -> jnp.ndarray:
-        return jax.random.permutation(rng, pixel)
+        k1, k2 = jax.random.split(rng)
+        return jnp.where(jax.random.bernoulli(k2, self.probability),
+            jax.random.permutation(k1, pixel),
+            pixel
+        )
 
 
 class RandomGamma(ColorspaceTransformation):
