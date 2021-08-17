@@ -3,7 +3,6 @@ Automatically document Augmax augmentations
 including sample outputs
 """
 from docutils import nodes
-from docutils.parsers.rst import Directive
 from sphinx.ext.autodoc.directive import AutodocDirective
 
 import jax
@@ -12,15 +11,17 @@ import augmax
 from imageio import imread, imwrite
 from pathlib import Path
 
+import inspect
+
 SEED = 42
 N_IMGS = 3
 
-def generate_images(augmentation, args, to_float: bool=False):
+def generate_images(augmentation, args, kwargs={}, to_float: bool=False):
     basedir = Path(__file__).parent.parent.parent
     image = imread(basedir / 'docs' / 'teddy.png')
     keys = jax.random.split(jax.random.PRNGKey(SEED), N_IMGS)
 
-    transform = augmentation(*args)
+    transform = augmentation(*args, **kwargs)
     if to_float:
         transform = augmax.Chain(augmax.ByteToFloat(), transform)
 
@@ -55,16 +56,22 @@ class AutoAugmentation(AutodocDirective):
             args = args[1:]
             to_float = True
 
-        images = generate_images(augmentation, args, to_float=to_float)
+        kwargs = {}
+        if 'p' in inspect.getfullargspec(augmentation)[0]:
+            kwargs['p'] = 1.0
+
+        images = generate_images(augmentation, args, kwargs, to_float=to_float)
 
         figure = nodes.figure(align='center')
         for img in images:
             figure += nodes.image(uri=img)
-        caption = f'Augmentation Examples for {augname}'
-        if args:
-            caption += '(' + ', '.join(map(str, args)) + ')'
-        else:
-            caption += ' with default parameters'
+
+        argstrings = []
+        for arg in args:
+            argstrings.append(str(arg))
+        for argname, argval in kwargs.items():
+            argstrings.append(f'{argname}={argval}')
+        caption = f'Augmentation Examples for {augname}({", ".join(argstrings)})'
         figure += nodes.caption(text=caption, align='center')
 
         cls_result.append(figure)
