@@ -74,8 +74,12 @@ class AutoAugmentation(AutodocDirective):
         caption = f'Augmentation Examples for {augname}({", ".join(argstrings)})'
         figure += nodes.caption(text=caption, align='center')
 
+        entry = cls_result[1].children[0]
+        if 'ids' not in entry:
+            print(entry.pformat())
+        cls_result.insert(1, nodes.title(text=augname, ids=entry['ids']))
+        entry['ids'] = []
         cls_result.append(figure)
-        cls_result.insert(0, nodes.title(text=augname))
 
         section = nodes.section('', *cls_result, ids=[augname], names=[augname])
 
