@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Tuple
 from abc import abstractmethod
 import math
 
@@ -15,11 +15,11 @@ from . import utils
 class LazyCoordinates:
     _current_transform: jnp.ndarray = jnp.eye(3)
     _offsets: Union[jnp.ndarray, None] = None
-    input_shape: tuple[int, int]
-    current_shape: tuple[int, int]
-    final_shape: tuple[int, int]
+    input_shape: Tuple[int, int]
+    current_shape: Tuple[int, int]
+    final_shape: Tuple[int, int]
 
-    def __init__(self, shape: tuple[int, int]):
+    def __init__(self, shape: Tuple[int, int]):
         self.input_shape = shape
         self.current_shape = shape
         self.final_shape = shape
@@ -70,7 +70,6 @@ class LazyCoordinates:
             self._offsets = self._offsets + offsets
 
 
-
 class GeometricTransformation(Transformation):
     @abstractmethod
     def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates) -> LazyCoordinates:
@@ -111,7 +110,7 @@ class GeometricTransformation(Transformation):
             val.append(current)
         return val
 
-    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+    def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         return input_shape
 
 
@@ -136,7 +135,7 @@ class GeometricChain(GeometricTransformation, BaseChain):
 
         return coordinates
 
-    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+    def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         shape = input_shape
         for transform in self.transforms:
             shape = transform.output_shape(shape)
@@ -211,7 +210,7 @@ class Rotate(GeometricTransformation):
         p (float): Probability of applying the transformation
     """
     def __init__(self,
-            angle_range: Union[tuple[float, float], float]=(-30, 30),
+            angle_range: Union[Tuple[float, float], float]=(-30, 30),
             p: float = 1.0):
         super().__init__()
         if hasattr(angle_range, '__iter__'):
@@ -279,7 +278,7 @@ class Crop(GeometricTransformation):
         ])
         coordinates.push_transform(transform)
 
-    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+    def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         return (self.height, self.width)
 
 
@@ -289,7 +288,7 @@ class Resize(GeometricTransformation):
         self.width = width
         self.height = width if height is None else height
 
-    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+    def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         return (self.height, self.width)
 
     def __repr__(self):
@@ -331,7 +330,7 @@ class CenterCrop(GeometricTransformation):
         # Cropping is done implicitly via output_shape
         pass
 
-    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+    def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         return (self.height, self.width)
 
     def __repr__(self):
@@ -370,7 +369,7 @@ class RandomCrop(GeometricTransformation):
         ])
         coordinates.push_transform(transform)
 
-    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+    def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         return (self.height, self.width)
 
 
@@ -389,7 +388,7 @@ class RandomSizedCrop(GeometricTransformation):
     max_zoom: float
 
     def __init__(self,
-            width: int, height: int = None, zoom_range: tuple[float, float] = (0.5, 2.0),
+            width: int, height: int = None, zoom_range: Tuple[float, float] = (0.5, 2.0),
             prevent_underzoom: bool = True):
         super().__init__()
         self.width = width
@@ -429,7 +428,7 @@ class RandomSizedCrop(GeometricTransformation):
 
         coordinates.push_transform(transform)
 
-    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+    def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         return (self.height, self.width)
 
 

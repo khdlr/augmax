@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, List
+from typing import Union, List, Tuple
 
 import math
 import jax
@@ -23,7 +23,7 @@ class GridShuffle(ImageLevelTransformation):
             Currently requires that each image dimension is a multiple of the corresponding value.
         p (float): Probability of applying the transformation
     """
-    def __init__(self, grid_size: Union[tuple[int, int], int] = (4, 4), p: float = 0.5, input_types=[InputType.IMAGE]):
+    def __init__(self, grid_size: Union[Tuple[int, int], int] = (4, 4), p: float = 0.5, input_types=[InputType.IMAGE]):
         super().__init__(input_types)
         if hasattr(grid_size, '__iter__'):
             self.grid_size = tuple(grid_size)

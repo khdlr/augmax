@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List
+from typing import List, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -100,7 +100,7 @@ class RandomGamma(ColorspaceTransformation):
         p (float): Probability of applying the transformation
     """
     def __init__(self,
-            range: tuple[float, float]=(0.75, 1.33),
+            range: Tuple[float, float]=(0.75, 1.33),
             p: float = 0.5,
             input_types=None
     ):
@@ -128,7 +128,7 @@ class RandomBrightness(ColorspaceTransformation):
         p (float): Probability of applying the transformation
     """
     def __init__(self,
-            range: tuple[float, float] = (-1.0, 1.0),
+            range: Tuple[float, float] = (-1.0, 1.0),
             p: float = 0.5,
             input_types=None
     ):
@@ -162,7 +162,7 @@ class RandomContrast(ColorspaceTransformation):
         p (float): Probability of applying the transformation
     """
     def __init__(self,
-            range: tuple[float, float] = (-1.0, 1.0),
+            range: Tuple[float, float] = (-1.0, 1.0),
             p: float = 0.5,
             input_types=None
     ):
