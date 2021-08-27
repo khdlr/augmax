@@ -1,6 +1,7 @@
 from abc import abstractmethod
 from typing import Union
 
+import math
 import jax
 import jax.numpy as jnp
 from einops import rearrange
@@ -12,7 +13,7 @@ class ImageLevelTransformation(Transformation):
     pass
 
 
-class GridShuffle(Transformation):
+class GridShuffle(ImageLevelTransformation):
     """Divides the image into grid cells and shuffles them randomly.
 
     Args:
@@ -48,3 +49,44 @@ class GridShuffle(Transformation):
         do_apply = jax.random.bernoulli(rng, self.probability)
         
         return jnp.where(do_apply, image, raw_image)
+
+
+class _ConvolutionalBlur(ImageLevelTransformation):
+    @abstractmethod
+    def __init__(self, p: float = 0.5):
+        self.probability = p
+        self.kernel = None
+        self.kernelsize = -1
+
+    def apply(self, image: jnp.ndarray, rng: jnp.ndarray) -> jnp.ndarray:
+        do_apply = jax.random.bernoulli(rng, self.probability)
+        p0 = self.kernelsize // 2
+        p1 = self.kernelsize - p0 - 1
+        image_padded = jnp.pad(image, [(p0, p1), (p0, p1), (0, 0)], mode='edge')
+        image_padded = rearrange(image_padded, 'h w (c c2) -> c c2 h w', c2=1)
+        convolved = jax.lax.conv(image_padded, self.kernel, [1, 1], 'valid')
+        convolved = rearrange(convolved, 'c c2 h w -> h w (c c2)', c2=1)
+        image = jnp.where(do_apply, convolved, image)
+        return image
+
+
+class Blur(_ConvolutionalBlur):
+    def __init__(self, size: int = 5, p: float = 0.5):
+        super().__init__(p)
+        self.kernel = jnp.ones([1, 1, size, size])
+        self.kernel = self.kernel / self.kernel.sum()
+        self.kernelsize = size
+
+
+class GaussianBlur(_ConvolutionalBlur):
+    def __init__(self, sigma: int = 3, p: float = 0.5):
+        super().__init__(p)
+        N = int(math.ceil(2 * sigma))
+        rng = jnp.linspace(-2.0, 2.0, N)
+        x = rng.reshape(1, -1)
+        y = rng.reshape(-1, 1)
+
+        self.kernel = jnp.exp((-0.5/sigma) * (x*x + y*y))
+        self.kernel = self.kernel / self.kernel.sum()
+        self.kernel = self.kernel.reshape(1, 1, N, N)
+        self.kernelsize = N

@@ -6,7 +6,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-from .base import Transformation
+from .base import Transformation, Chain
 from . import utils
 
 
@@ -70,7 +70,7 @@ class GeometricTransformation(Transformation):
         return input_shape
 
 
-class GeometricChain(GeometricTransformation):
+class GeometricChain(GeometricTransformation, Chain):
     def __init__(self, *transforms: GeometricTransformation):
         super().__init__()
         for transform in transforms:
@@ -311,8 +311,8 @@ class RandomSizedCrop(GeometricTransformation):
     """
     width: int
     height: int
-    min_logzoom: float
-    max_logzoom: float
+    min_zoom: float
+    max_zoom: float
 
     def __init__(self,
             width: int, height: int = None, zoom_range: tuple[float, float] = (0.5, 2.0),
@@ -320,8 +320,8 @@ class RandomSizedCrop(GeometricTransformation):
         super().__init__()
         self.width = width
         self.height = width if height is None else height
-        self.min_logzoom = math.log(zoom_range[0])
-        self.max_logzoom = math.log(zoom_range[1])
+        self.min_zoom = zoom_range[0]
+        self.max_zoom = zoom_range[1]
         self.prevent_underzoom = prevent_underzoom
 
     def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
@@ -329,14 +329,13 @@ class RandomSizedCrop(GeometricTransformation):
         key1, key2 = jax.random.split(rng)
 
         if self.prevent_underzoom:
-            min_logzoom = max(self.min_logzoom, math.log(self.height / H), math.log(self.width / W))
-            max_logzoom = max(self.max_logzoom, min_logzoom)
+            min_zoom = max(self.min_zoom, math.log(self.height / H), math.log(self.width / W))
+            max_zoom = max(self.max_zoom, min_zoom)
         else:
-            min_logzoom = self.min_logzoom
-            max_logzoom = self.max_logzoom
+            min_zoom = self.min_zoom
+            max_zoom = self.max_zoom
 
-        log_zoom  = jax.random.uniform(key1, minval=min_logzoom, maxval=max_logzoom)
-        zoom = jnp.exp(log_zoom)
+        zoom = utils.log_uniform(key1, minval=min_zoom, maxval=max_zoom)
 
         limit_y = ((H*zoom) - self.height) / 2
         limit_x = ((W*zoom) - self.width) / 2

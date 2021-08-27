@@ -6,6 +6,7 @@ from docutils import nodes
 from sphinx.ext.autodoc.directive import AutodocDirective
 
 import jax
+import jax.numpy as jnp
 import json
 import augmax
 from imageio import imread, imwrite
@@ -17,6 +18,7 @@ SEED = 42
 N_IMGS = 3
 
 def generate_images(augmentation, args, kwargs={}, to_float: bool=False):
+    augname = augmentation.__name__
     basedir = Path(__file__).parent.parent.parent
     image = imread(basedir / 'docs' / 'teddy.png')
     keys = jax.random.split(jax.random.PRNGKey(SEED), N_IMGS)
@@ -28,10 +30,15 @@ def generate_images(augmentation, args, kwargs={}, to_float: bool=False):
     transform = jax.jit(jax.vmap(transform.apply, (None, 0)))
     images = transform(image, keys)
 
+    if augname == 'ByteToFloat' or (to_float and augname not in ['Normalize']):
+        # assert images.min() >= 0.0, f"augmented images.min() = {images.min()}, which should not happen!"
+        # assert images.max() <= 1.0, f"augmented images.max() = {images.max()}, which should not happen!"
+        images = (images * 255.0).astype(jnp.uint8)
+
     imgdir = Path(basedir / 'docs' / 'generated_imgs').relative_to(basedir).absolute()
     imgnames = []
     for i in range(N_IMGS):
-        imgname = str(imgdir / f'{augmentation.__name__}_{i}.png')
+        imgname = str(imgdir / f'{augname}_{i}.png')
         imwrite(imgname, images[i])
         imgnames.append('/' + imgname)
     return imgnames
@@ -74,14 +81,12 @@ class AutoAugmentation(AutodocDirective):
         caption = f'Augmentation Examples for {augname}({", ".join(argstrings)})'
         figure += nodes.caption(text=caption, align='center')
 
-        entry = cls_result[1].children[0]
-        if 'ids' not in entry:
-            print(entry.pformat())
-        cls_result.insert(1, nodes.title(text=augname, ids=entry['ids']))
-        entry['ids'] = []
+        cls_result.insert(0, nodes.title(text=augname))
         cls_result.append(figure)
 
-        section = nodes.section('', *cls_result, ids=[augname], names=[augname])
+        entry = cls_result[2].children[0]
+        section = nodes.section('', *cls_result, ids=entry['ids'], names=[augname])
+        entry['ids'] = []
 
         return [section]
 

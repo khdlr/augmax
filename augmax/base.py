@@ -18,6 +18,10 @@ class Chain(Transformation):
     def apply(self, image: jnp.ndarray, rng: jnp.ndarray) -> jnp.ndarray:
         subkeys = jax.random.split(rng, len(self.transforms))
         for transform, subkey in zip(self.transforms, subkeys):
-            print(transform)
             image = transform.apply(image, subkey)
         return image
+
+    def __repr__(self):
+        members_repr = ",\n".join(str(t) for t in self.transforms)
+        members_repr = '\n'.join(['\t'+line for line in members_repr.split('\n')])
+        return f'{self.__class__.__name__}(\n{members_repr}\n)'

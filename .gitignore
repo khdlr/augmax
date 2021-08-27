@@ -1,3 +1,4 @@
 __pycache__/
 docs/generated_imgs/
 *.svg
+.ipynb_checkpoints/
