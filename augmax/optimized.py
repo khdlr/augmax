@@ -45,8 +45,6 @@ class Chain(BaseChain):
             sub_chains.append(ColorspaceChain(*colorspace))
             colorspace = []
 
-        print(sub_chains)
-
         super().__init__(*sub_chains, input_types=input_types)
 
 
