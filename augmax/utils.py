@@ -1,4 +1,4 @@
-from typing import Union, Any, Tuple
+from typing import Union, Any, Sequence, Tuple, TypeVar
 
 import numpy as np
 import jax
@@ -7,17 +7,31 @@ import jax.scipy.ndimage as jnd
 
 Tensor = Union[np.ndarray, jnp.ndarray]
 
-def resample_image(image: Tensor, coordinates: Tensor, order: int=1, mode: str='constant', cval: Any=0):
-    H, W, C = image.shape
-    D, H_, W_ = coordinates.shape
-    assert D == 2, f'Expected last dimension of coordinates array to have size 2, got {coordinates.shape}'
+
+def apply_perspective(xy: jnp.ndarray, M: jnp.ndarray) -> jnp.ndarray:
+    xyz = jnp.concatenate([xy, jnp.ones([1, *xy.shape[1:]])])
+    xyz = jnp.tensordot(M, xyz, axes=1)
+    yx, z = jnp.split(xyz, [2])
+    return yx / z
+
+
+def resample_image(image: Tensor, coordinates: Tensor, order: int=1, mode: str='nearest', cval: Any=0):
+    H, W, *C = image.shape
+    D, *S_out = coordinates.shape
+    assert D == 2, f'Expected first dimension of coordinates array to have size 2, got {coordinates.shape}'
     coordinates = coordinates.reshape(2, -1)
 
     def resample_channel(channel: Tensor):
         return jnd.map_coordinates(channel, coordinates, order=order, mode=mode, cval=cval)
 
-    resampled = jax.vmap(resample_channel, in_axes=-1, out_axes=-1)(image)
-    resampled = resampled.reshape(H_, W_, C)
+    if image.ndim == 2:
+        resampled = resample_channel(image)
+    elif image.ndim == 3:
+        resampled = jax.vmap(resample_channel, in_axes=-1, out_axes=-1)(image)
+    else:
+        raise ValueError(f"Cannot resample image with {image.ndim} dimensions")
+
+    resampled = resampled.reshape(*S_out, *C)
 
     return resampled
 
@@ -59,3 +73,13 @@ def hsv_to_rgb(hue: jnp.ndarray, saturation: jnp.ndarray, value: jnp.ndarray) ->
     k = jnp.mod(n + hue * 6, 6)
     f = value - value * saturation * jnp.maximum(0, jnp.minimum(jnp.minimum(k, 4-k), 1))
     return f
+
+
+T = TypeVar('T')
+def unpack_list_if_singleton(arbitrary_list: Sequence[T]) -> Union[T, Sequence[T]]:
+    if len(arbitrary_list) == 1:
+        return arbitrary_list[0]
+    else:
+        return tuple(arbitrary_list)
+
+

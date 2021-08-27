@@ -1,42 +1,61 @@
-from typing import Union
+from typing import Union, List
 from abc import abstractmethod
 import math
 
 import numpy as np
 import jax
+import jax.scipy.ndimage as jnd
 import jax.numpy as jnp
+from einops import rearrange
 
-from .base import Transformation, Chain
+from .base import Transformation, BaseChain, InputType, same_type
 from . import utils
-
-
-def _apply_perspective(xy: jnp.ndarray, M: jnp.ndarray) -> jnp.ndarray:
-    _, H, W = xy.shape
-    xyz = jnp.concatenate([xy, jnp.ones([1, H, W])])
-    xyz = jnp.tensordot(M, xyz, axes=1)
-    yx, z = jnp.split(xyz, [2])
-    return yx / z
 
 
 class LazyCoordinates:
     _current_transform: jnp.ndarray = jnp.eye(3)
     _offsets: Union[jnp.ndarray, None] = None
     input_shape: tuple[int, int]
+    current_shape: tuple[int, int]
     final_shape: tuple[int, int]
 
     def __init__(self, shape: tuple[int, int]):
         self.input_shape = shape
+        self.current_shape = shape
         self.final_shape = shape
 
-    def get(self) -> jnp.ndarray:
+    def get_coordinate_grid(self) -> jnp.ndarray:
         H, W = self.final_shape
         coordinates = jnp.mgrid[0:H, 0:W] - jnp.array([H/2-0.5, W/2-0.5]).reshape(2, 1, 1)
-        coordinates = _apply_perspective(coordinates, self._current_transform)
+        coordinates = utils.apply_perspective(coordinates, self._current_transform)
 
         if self._offsets is not None:
             coordinates = coordinates + self._offsets
 
-        return coordinates
+        H, W = self.input_shape
+        return coordinates + jnp.array([H/2-0.5, W/2-0.5]).reshape(2, 1, 1)
+
+    def apply_to_points(self, points) -> jnp.ndarray:
+        M_inv = jnp.linalg.inv(self._current_transform)
+
+        H_in, W_in = self.input_shape
+        H_out, W_out = self.final_shape
+        c_x = jnp.array([H_in/2 - 0.5, W_in/2 - 0.5]).reshape(2, 1)
+        c_y = jnp.array([H_out/2 - 0.5, W_out/2 - 0.5]).reshape(2, 1)
+        points = points.T
+
+        transformed_points = utils.apply_perspective(points - c_x, M_inv) + c_y
+        if self._offsets is not None:
+            # Need to do fix-point iteration
+            points_iter = transformed_points
+            offset_grid = rearrange(self._offsets, 'c h w -> h w c')
+            for _ in range(2):
+                # fix-point iteration
+                offsets = utils.resample_image(offset_grid, points_iter, order=1).T
+                points_iter = utils.apply_perspective(points - offsets - c_x, M_inv) + c_y
+            transformed_points = points_iter
+
+        return transformed_points.T
 
     def push_transform(self, M: jnp.ndarray):
         assert M.shape == (3, 3)
@@ -51,26 +70,52 @@ class LazyCoordinates:
             self._offsets = self._offsets + offsets
 
 
+
 class GeometricTransformation(Transformation):
     @abstractmethod
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray) -> LazyCoordinates:
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates) -> LazyCoordinates:
         return coordinates
 
-    def apply(self, image: jnp.ndarray, rng: jnp.ndarray) -> jnp.ndarray:
-        H, W, _ = image.shape
+    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None) -> List[jnp.ndarray]:
+        if input_types is None:
+            input_types = self.input_types
+
+        H, W, _ = inputs[0].shape
         coordinates = LazyCoordinates((H, W))
         coordinates.final_shape = self.output_shape((H, W))
 
-        self.transform_coordinates(coordinates, rng)
+        self.transform_coordinates(rng, coordinates)
 
-        coordinates = coordinates.get() + jnp.array([H/2-0.5, W/2-0.5]).reshape(2, 1, 1)
-        return utils.resample_image(image, coordinates, order=1)
+        sampling_coords = coordinates.get_coordinate_grid()
+
+        val = []
+        for input, type in zip(inputs, input_types):
+            current = None
+            if same_type(type, InputType.IMAGE):
+                # Linear Interpolation for Images
+                current = utils.resample_image(input, sampling_coords, order=1)
+            elif same_type(type, InputType.MASK):
+                # Nearest Interpolation for Masks
+                current = utils.resample_image(input, sampling_coords, order=0)
+            elif same_type(type, InputType.KEYPOINTS):
+                current = coordinates.apply_to_points(input)
+            elif same_type(type, InputType.CONTOUR):
+                current = coordinates.apply_to_points(input)
+                current = jnp.where(jnp.linalg.det(coordinates._current_transform) < 0,
+                    current[::-1],
+                    current
+                )
+
+            if current is None:
+                raise NotImplementedError(f"Cannot transform input of type {type} with {self.__class__.__name__}")
+            val.append(current)
+        return val
 
     def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
         return input_shape
 
 
-class GeometricChain(GeometricTransformation, Chain):
+class GeometricChain(GeometricTransformation, BaseChain):
     def __init__(self, *transforms: GeometricTransformation):
         super().__init__()
         for transform in transforms:
@@ -79,15 +124,15 @@ class GeometricChain(GeometricTransformation, Chain):
             # assert isinstance(transform, GeometricTransformation), f"{transform} is not a GeometricTransformation!"
         self.transforms = transforms
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
         shape_chain = [coordinates.input_shape]
         for transform in self.transforms[:-1]:
             shape_chain.append(transform.output_shape(shape_chain[-1]))
 
         subkeys = jax.random.split(rng, len(self.transforms))
-        for transform, input_shape, subkey in zip(reversed(self.transforms), reversed(shape_chain), subkeys):
-            coordinates.input_shape = input_shape
-            transform.transform_coordinates(coordinates, subkey)
+        for transform, current_shape, subkey in zip(reversed(self.transforms), reversed(shape_chain), subkeys):
+            coordinates.current_shape = current_shape
+            transform.transform_coordinates(subkey, coordinates)
 
         return coordinates
 
@@ -108,7 +153,7 @@ class HorizontalFlip(GeometricTransformation):
         super().__init__()
         self.probability = p
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
         f = 1. - 2. * jax.random.bernoulli(rng, self.probability)
         transform = jnp.array([
             [1, 0, 0],
@@ -128,7 +173,7 @@ class VerticalFlip(GeometricTransformation):
         super().__init__()
         self.probability = p
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
         f = 1. - 2. * jax.random.bernoulli(rng, self.probability)
         transform = jnp.array([
             [f, 0, 0],
@@ -144,7 +189,7 @@ class Rotate90(GeometricTransformation):
     def __init__(self):
         super().__init__()
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
         params = jax.random.bernoulli(rng, 0.5, [2])
         flip = 1. - 2. * params[0] 
         rot = params[1]
@@ -175,7 +220,7 @@ class Rotate(GeometricTransformation):
             self.theta_min, self.theta_max = np.deg2rad([-angle_range, angle_range])
         self.probability = p
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
         do_apply = jax.random.bernoulli(rng, self.probability)
         theta = do_apply * jax.random.uniform(rng, minval=self.theta_min, maxval=self.theta_max)
         transform = jnp.array([
@@ -192,7 +237,7 @@ class Translate(GeometricTransformation):
         self.dx = dx
         self.dy = dy
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
         transform = jnp.array([
             [1, 0, -self.dy],
             [0, 1, -self.dx],
@@ -217,8 +262,8 @@ class Crop(GeometricTransformation):
         self.width = w
         self.height = h
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
-        H, W = coordinates.input_shape
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+        H, W = coordinates.current_shape
 
         center_x = self.x0 + self.width / 2 - W / 2
         center_y = self.y0 + self.height / 2 - H / 2
@@ -253,7 +298,7 @@ class CenterCrop(GeometricTransformation):
         self.width = width
         self.height = width if height is None else height
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
         # Cropping is done implicitly via output_shape
         pass
 
@@ -279,8 +324,8 @@ class RandomCrop(GeometricTransformation):
         self.width = width
         self.height = width if height is None else height
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
-        H, W = coordinates.input_shape
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+        H, W = coordinates.current_shape
 
         limit_y = (H - self.height) / 2
         limit_x = (W - self.width) / 2
@@ -324,8 +369,8 @@ class RandomSizedCrop(GeometricTransformation):
         self.max_zoom = zoom_range[1]
         self.prevent_underzoom = prevent_underzoom
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
-        H, W = coordinates.input_shape
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+        H, W = coordinates.current_shape
         key1, key2 = jax.random.split(rng)
 
         if self.prevent_underzoom:
@@ -373,7 +418,7 @@ class Warp(GeometricTransformation):
         self.strength = strength
         self.coarseness = coarseness
 
-    def transform_coordinates(self, coordinates: LazyCoordinates, rng: jnp.ndarray):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
         H, W = coordinates.final_shape
 
         H_, W_ = H // self.coarseness, W // self.coarseness

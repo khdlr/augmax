@@ -1,4 +1,4 @@
-from .base import Chain, Transformation
+from .base import BaseChain, Transformation, InputType
 
 from .geometric import GeometricTransformation, GeometricChain, HorizontalFlip, VerticalFlip, Rotate, \
         CenterCrop, Warp, Crop, Translate, RandomCrop, Rotate90, RandomSizedCrop
@@ -8,4 +8,4 @@ from .colorspace import ColorspaceTransformation, ColorspaceChain, ByteToFloat, 
 
 from .imagelevel import GridShuffle, Blur, GaussianBlur
 
-from .optimized import OptimizedChain
+from .optimized import Chain, OptimizedChain
