@@ -23,8 +23,11 @@ def same_type(left_type, right_type):
 
 
 class Transformation(ABC):
-    def __init__(self, input_types=[InputType.IMAGE]):
-            self.input_types = input_types
+    def __init__(self, input_types=None):
+            if input_types is None:
+                self.input_types = [InputType.IMAGE]
+            else:
+                self.input_types = input_types
 
     def __call__(self, rng: jnp.ndarray, *inputs: jnp.ndarray) -> Union[jnp.ndarray, Sequence[jnp.ndarray]]:
         if len(self.input_types) != len(inputs):

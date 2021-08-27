@@ -27,8 +27,8 @@ def generate_images(augmentation, args, kwargs={}, to_float: bool=False):
     if to_float:
         transform = augmax.Chain(augmax.ByteToFloat(), transform)
 
-    transform = jax.jit(jax.vmap(transform.apply, (None, 0)))
-    images = transform(image, keys)
+    transform = jax.jit(jax.vmap(transform, (0, None)))
+    images = transform(keys, image)
 
     if augname == 'ByteToFloat' or (to_float and augname not in ['Normalize']):
         # assert images.min() >= 0.0, f"augmented images.min() = {images.min()}, which should not happen!"

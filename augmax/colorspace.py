@@ -32,7 +32,8 @@ class ColorspaceTransformation(Transformation):
 
 
 class ColorspaceChain(ColorspaceTransformation, BaseChain):
-    def __init__(self, *transforms: ColorspaceTransformation):
+    def __init__(self, *transforms: ColorspaceTransformation, input_types=None):
+        super().__init__(input_types)
         self.transforms = transforms
 
     def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
@@ -59,7 +60,10 @@ class Normalize(ColorspaceTransformation):
     """
     def __init__(self,
             mean: jnp.ndarray = jnp.array([0.485, 0.456, 0.406]),
-            std: jnp.ndarray = jnp.array([0.229, 0.224, 0.225])):
+            std: jnp.ndarray = jnp.array([0.229, 0.224, 0.225]),
+            input_types=None
+    ):
+        super().__init__(input_types)
         self.mean = jnp.asarray(mean)
         self.std = jnp.asarray(std)
 
@@ -73,7 +77,11 @@ class ChannelShuffle(ColorspaceTransformation):
     Args:
         p (float): Probability of applying the transformation
     """
-    def __init__(self, p: float = 0.5):
+    def __init__(self,
+            p: float = 0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
         self.probability = p
 
     def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
@@ -91,7 +99,12 @@ class RandomGamma(ColorspaceTransformation):
         range (float, float): 
         p (float): Probability of applying the transformation
     """
-    def __init__(self, range: tuple[float, float]=(0.75, 1.33), p: float = 0.5):
+    def __init__(self,
+            range: tuple[float, float]=(0.75, 1.33),
+            p: float = 0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
         self.range = range
         self.probability = p
 
@@ -114,7 +127,12 @@ class RandomBrightness(ColorspaceTransformation):
         range (float, float): 
         p (float): Probability of applying the transformation
     """
-    def __init__(self, range: tuple[float, float] = (-1.0, 1.0), p: float = 0.5):
+    def __init__(self,
+            range: tuple[float, float] = (-1.0, 1.0),
+            p: float = 0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
         self.minval = range[0] / 2.0
         self.maxval = range[1] / 2.0
         self.probability = p
@@ -143,7 +161,12 @@ class RandomContrast(ColorspaceTransformation):
         range (float, float): 
         p (float): Probability of applying the transformation
     """
-    def __init__(self, range: tuple[float, float] = (-1.0, 1.0), p: float = 0.5):
+    def __init__(self,
+            range: tuple[float, float] = (-1.0, 1.0),
+            p: float = 0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
         self.minval = range[0] / 2.0
         self.maxval = range[1] / 2.0
         self.probability = p
@@ -176,7 +199,10 @@ class ColorJitter(ColorspaceTransformation):
             contrast: float = 0.1,
             saturation: float = 0.1,
             hue: float = 0.1,
-            p: float=0.5):
+            p: float=0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
         self.brightness = brightness
         self.contrast = contrast
         self.saturation = saturation
@@ -230,7 +256,11 @@ class RandomGrayscale(ColorspaceTransformation):
     Args:
         p (float): Probability of applying the transformation
     """
-    def __init__(self, p: float = 0.5):
+    def __init__(self,
+            p: float = 0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
         self.probability = p
 
     def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
@@ -253,7 +283,12 @@ class Solarization(ColorspaceTransformation):
         range (float, float): 
         p (float): Probability of applying the transformation
     """
-    def __init__(self, threshold: float = 0.5, p: float = 0.5):
+    def __init__(self,
+            threshold: float = 0.5,
+            p: float = 0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
         self.range = range
         self.threshold = threshold
         self.probability = p

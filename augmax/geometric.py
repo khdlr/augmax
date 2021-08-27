@@ -283,6 +283,35 @@ class Crop(GeometricTransformation):
         return (self.height, self.width)
 
 
+class Resize(GeometricTransformation):
+    def __init__(self, width: int, height: int = None):
+        super().__init__()
+        self.width = width
+        self.height = width if height is None else height
+
+    def output_shape(self, input_shape: tuple[int, int]) -> tuple[int, int]:
+        return (self.height, self.width)
+
+    def __repr__(self):
+        return f'Resize({self.width}, {self.height})'
+
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+        H, W = coordinates.current_shape
+        H_, W_ = self.height, self.width
+
+        # Out matrix:
+        # [ 1/zoom    0   1/c_y ]
+        # [   0    1/zoom 1/c_x ]
+        # [   0       0     1   ]
+        transform = jnp.array([
+            [H / H_,       0, 0],
+            [      0, W / W_, 0],
+            [      0,      0, 1],
+        ])
+
+        coordinates.push_transform(transform)
+
+
 class CenterCrop(GeometricTransformation):
     """Extracts a central crop from the image with given width and height.
 

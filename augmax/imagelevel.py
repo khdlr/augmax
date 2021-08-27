@@ -37,7 +37,7 @@ class GridShuffle(ImageLevelTransformation):
         if input_types is None:
             input_types = self.input_types
 
-        key1, key2 = jax.random.split(rng, len(self.transforms))
+        key1, key2 = jax.random.split(rng)
         do_apply = jax.random.bernoulli(key1, self.probability)
         val = []
         for input, type in zip(inputs, input_types):
