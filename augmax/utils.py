@@ -53,9 +53,10 @@ def rgb_to_hsv(pixel: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarra
     range = value - jnp.min(pixel)
     argmax = jnp.argmax(pixel)
     second = jnp.mod(argmax + 1, 3)
+    third  = jnp.mod(argmax + 2, 3)
     hue = jnp.where(range == 0.0,
         0.0,
-        (2 * argmax + (pixel[argmax] - pixel[second])/range) / 6
+        (2 * argmax + (pixel[second] - pixel[third]) / range) / 6
     )
     saturation = jnp.where(value == 0,
         0.0,

@@ -226,21 +226,20 @@ class ColorJitter(ColorspaceTransformation):
         keys = iter(jax.random.split(rng, self.keys_needed))
         hue, saturation, value = rgb_to_hsv(pixel)
 
-        if self.hue > 0:
-            hue = hue + jax.random.uniform(next(keys), minval=-self.hue, maxval=self.hue)
-        if self.saturation > 0:
-            saturation = jnp.clip(
-                saturation + jax.random.uniform(next(keys), minval=-self.saturation, maxval=self.saturation),
-                0, 1)
         if self.brightness > 0:
             value = value + jax.random.uniform(next(keys), minval=-self.brightness, maxval=self.brightness)
         if self.contrast > 0:
             contrast = jax.random.uniform(next(keys), minval=-self.contrast, maxval=self.contrast)
             slant = jnp.tan((contrast + 1.0) * (jnp.pi / 4))
             # cf. https://gitlab.gnome.org/GNOME/gimp/-/blob/master/app/operations/gimpoperationbrightnesscontrast.c
-            # pixel = (pixel - 0.5) * slant + 0.5
             offset = 0.5 * (1 - slant)
             value = value * slant + offset
+        if self.hue > 0:
+            hue = hue + jax.random.uniform(next(keys), minval=-self.hue, maxval=self.hue)
+        if self.saturation > 0:
+            saturation = jnp.clip(
+                saturation + jax.random.uniform(next(keys), minval=-self.saturation, maxval=self.saturation),
+                0, 1)
         if self.contrast > 0 or self.brightness > 0:
             value = jnp.clip(value, 0, 1)
 
