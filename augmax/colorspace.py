@@ -52,7 +52,10 @@ class ByteToFloat(ColorspaceTransformation):
 
 
 class Normalize(ColorspaceTransformation):
-    """Normalizes images using given coefficients
+    """Normalizes images using given coefficients using the mapping
+
+    .. math::
+        p_k \\longmapsto \\frac{p_k - \\mathtt{mean}_k}{\\mathtt{std}_k}
 
     Args:
         mean (jnp.ndarray): Mean values for each channel
