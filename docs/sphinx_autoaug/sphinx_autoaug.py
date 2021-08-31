@@ -19,8 +19,8 @@ N_IMGS = 3
 
 def generate_images(augmentation, args, kwargs={}, to_float: bool=False):
     augname = augmentation.__name__
-    basedir = Path(__file__).parent.parent.parent
-    image = imread(basedir / 'docs' / 'teddy.png')
+    basedir = Path(__file__).parent.parent
+    image = imread(basedir / 'teddy.png')
     keys = jax.random.split(jax.random.PRNGKey(SEED), N_IMGS)
 
     transform = augmentation(*args, **kwargs)
@@ -35,7 +35,7 @@ def generate_images(augmentation, args, kwargs={}, to_float: bool=False):
         # assert images.max() <= 1.0, f"augmented images.max() = {images.max()}, which should not happen!"
         images = (images * 255.0).astype(jnp.uint8)
 
-    imgdir = Path(basedir / 'docs' / 'generated_imgs').relative_to(basedir).absolute()
+    imgdir = Path(basedir / 'generated_imgs').absolute()
     imgdir.mkdir(exist_ok=True)
     imgnames = []
     for i in range(N_IMGS):
