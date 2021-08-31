@@ -31,7 +31,7 @@ image = ...
 
 rng = jax.random.PRNGKey(27)
 
-transformed_image = transform(image, rng)
+transformed_image = transform(rng, image)
 ```
 
 ## Batch-wise Augmentation on the GPU
@@ -42,12 +42,12 @@ which can execute the code on the GPU, as well as batched augmentation (`jax.vma
 
 ### Augmenting a single image on the GPU
 ```python
-transformed_image = jax.jit(transform)(image, rng)
+transformed_image = jax.jit(transform)(rng, image)
 ```
 
 ### Augmenting an entire batch of images on the GPU
 ```python
 sub_rngs = jax.random.split(rng, images.shape[0])
-transformed_images = jax.jit(jax.vmap(transform))(images, sub_rngs)
+transformed_images = jax.jit(jax.vmap(transform))(sub_rng, images)
 ```
 
