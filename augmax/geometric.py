@@ -2,9 +2,7 @@ from typing import Union, List, Tuple
 from abc import abstractmethod
 import math
 
-import numpy as np
 import jax
-import jax.scipy.ndimage as jnd
 import jax.numpy as jnp
 from einops import rearrange
 
@@ -213,10 +211,9 @@ class Rotate(GeometricTransformation):
             angle_range: Union[Tuple[float, float], float]=(-30, 30),
             p: float = 1.0):
         super().__init__()
-        if hasattr(angle_range, '__iter__'):
-            self.theta_min, self.theta_max = np.deg2rad(angle_range)
-        else:
-            self.theta_min, self.theta_max = np.deg2rad([-angle_range, angle_range])
+        if not hasattr(angle_range, '__iter__'):
+            angle_range = (-angle_range, angle_range)
+        self.theta_min, self.theta_max = map(math.radians, angle_range)
         self.probability = p
 
     def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):

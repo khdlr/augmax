@@ -1,11 +1,8 @@
 from typing import Union, Any, Sequence, Tuple, TypeVar
 
-import numpy as np
 import jax
 import jax.numpy as jnp
 import jax.scipy.ndimage as jnd
-
-Tensor = Union[np.ndarray, jnp.ndarray]
 
 
 def apply_perspective(xy: jnp.ndarray, M: jnp.ndarray) -> jnp.ndarray:
@@ -15,13 +12,13 @@ def apply_perspective(xy: jnp.ndarray, M: jnp.ndarray) -> jnp.ndarray:
     return yx / z
 
 
-def resample_image(image: Tensor, coordinates: Tensor, order: int=1, mode: str='nearest', cval: Any=0):
+def resample_image(image: jnp.ndarray, coordinates: jnp.ndarray, order: int=1, mode: str='nearest', cval: Any=0):
     H, W, *C = image.shape
     D, *S_out = coordinates.shape
     assert D == 2, f'Expected first dimension of coordinates array to have size 2, got {coordinates.shape}'
     coordinates = coordinates.reshape(2, -1)
 
-    def resample_channel(channel: Tensor):
+    def resample_channel(channel: jnp.ndarray):
         return jnd.map_coordinates(channel, coordinates, order=order, mode=mode, cval=cval)
 
     if image.ndim == 2:
