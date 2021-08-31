@@ -13,15 +13,14 @@ needs_sphinx = '2.1'
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.append(os.path.abspath('sphinx_autoaug'))
 extensions = [
-    'myst_parser',
+    'myst_nb',
     'sphinx.ext.autodoc',
-    # 'sphinx.ext.autosummary',
-    # 'sphinx_autodoc_typehints',
     'sphinx.ext.intersphinx',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    'sphinx_autoaug'
+    'sphinx_autoaug',
+    'IPython.sphinxext.ipython_console_highlighting'
 ]
 
 intersphinx_mapping = {
@@ -31,7 +30,9 @@ intersphinx_mapping = {
     'jax': ('https://jax.readthedocs.io/en/latest/', None),
 }
 
-source_suffix = ['.rst', '.md']
+source_suffix = ['.rst', '.ipynb', '.md']
+
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 main_doc = 'index'
 

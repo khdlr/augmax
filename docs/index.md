@@ -4,6 +4,7 @@
 :maxdepth: 2
 
 installation
+notebooks/Getting Started
 ```
 
 ```{toctree}

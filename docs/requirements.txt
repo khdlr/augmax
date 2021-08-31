@@ -1,6 +1,7 @@
 sphinx >=3, <4
 sphinx_rtd_theme
 myst_parser
+myst-nb
 
 imageio
 jax[cpu]
