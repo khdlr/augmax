@@ -1,6 +1,6 @@
 Colorspace Transformations
 ==========================
-.. automodule:: augmax
+.. currentmodule:: augmax
 
 .. autoaug:: ByteToFloat
 .. autoaug:: Normalize "flt"

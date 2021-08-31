@@ -1,7 +1,7 @@
 Image-Level Transformations
 ===========================
 
-.. automodule:: augmax
+.. currentmodule:: augmax
 
 .. autoaug:: GridShuffle
 .. autoaug:: Blur "flt"

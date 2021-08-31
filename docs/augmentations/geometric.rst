@@ -1,6 +1,6 @@
 Geometric Transformations
 =========================
-.. automodule:: augmax
+.. currentmodule:: augmax
 
 .. autoaug:: Resize 100 100
 .. autoaug:: Crop 0 0 100 100
