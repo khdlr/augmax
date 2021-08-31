@@ -36,6 +36,7 @@ def generate_images(augmentation, args, kwargs={}, to_float: bool=False):
         images = (images * 255.0).astype(jnp.uint8)
 
     imgdir = Path(basedir / 'docs' / 'generated_imgs').relative_to(basedir).absolute()
+    imgdir.mkdir(exist_ok=True)
     imgnames = []
     for i in range(N_IMGS):
         imgname = str(imgdir / f'{augname}_{i}.png')
