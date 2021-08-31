@@ -1,4 +1,5 @@
 # Augmax
+[![PyPI version](https://badge.fury.io/py/augmax.svg)](https://pypi.org/project/augmax/) [![Documentation Status](https://readthedocs.org/projects/augmax/badge/?version=latest)](https://augmax.readthedocs.io/en/latest/?badge=latest)
 
 Augmax is an image data augmentation framework supporting efficiently-composable transformations
 with support for JAX function transformations.
