@@ -32,6 +32,8 @@ intersphinx_mapping = {
 
 source_suffix = ['.rst', '.ipynb', '.md']
 
+execution_timeout = 100
+
 exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 main_doc = 'index'
