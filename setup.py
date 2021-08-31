@@ -14,8 +14,12 @@
 from setuptools import setup, find_packages
 
 _version_dict = dict()
-exec(open('augmax/version.py').read(), _version_dict)
+with open('augmax/version.py') as f:
+    exec(f.read(), _version_dict)
 __version__ = _version_dict['__version__']
+
+with open('README.md', 'r', encoding='utf-8') as f:
+    long_description = f.read()
 
 setup(
     name='augmax',
@@ -28,6 +32,8 @@ setup(
         'jax>=0.1',
         'einops>=0.3'
     ],
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     url='https://github.com/khdlr/augmax',
     license='',
     classifiers=[
