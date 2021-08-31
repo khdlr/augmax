@@ -32,7 +32,10 @@ intersphinx_mapping = {
 
 source_suffix = ['.rst', '.ipynb', '.md']
 
+# Myst-NB
 execution_timeout = 100
+jupyter_execute_notebooks = "force"
+execution_allow_errors = True
 
 exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
