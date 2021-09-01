@@ -139,7 +139,8 @@ class GeometricChain(GeometricTransformation, BaseChain):
         for transform in self.transforms[:-1]:
             shape_chain.append(transform.output_shape(shape_chain[-1]))
 
-        subkeys = jax.random.split(rng, len(self.transforms))
+        N = len(self.transforms)
+        subkeys = [None]*N if rng is None else jax.random.split(rng, N)
         for transform, current_shape, subkey in zip(reversed(self.transforms), reversed(shape_chain), subkeys):
             coordinates.current_shape = current_shape
             transform.transform_coordinates(subkey, coordinates)

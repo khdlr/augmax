@@ -50,7 +50,8 @@ class ColorspaceChain(ColorspaceTransformation, BaseChain):
         self.transforms = transforms
 
     def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
-        subkeys = jax.random.split(rng, len(self.transforms))
+        N = len(self.transforms)
+        subkeys = [None]*N if rng is None else jax.random.split(rng, N)
         for transform, subkey in zip(self.transforms, subkeys):
             pixel = transform.pixelwise(subkey, pixel)
         return pixel

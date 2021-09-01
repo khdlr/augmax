@@ -66,7 +66,9 @@ class BaseChain(Transformation):
     def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: Sequence[InputType]=None) -> List[jnp.ndarray]:
         if input_types is None:
             input_types = self.input_types
-        subkeys = jax.random.split(rng, len(self.transforms))
+
+        N = len(self.transforms)
+        subkeys = [None]*N if rng is None else jax.random.split(rng, N)
 
         images = list(inputs)
         for transform, subkey in zip(self.transforms, subkeys):
