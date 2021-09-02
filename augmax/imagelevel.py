@@ -18,6 +18,7 @@ import math
 import jax
 import jax.numpy as jnp
 from einops import rearrange
+import warnings
 
 from .base import Transformation, InputType, same_type
 
@@ -46,7 +47,7 @@ class GridShuffle(ImageLevelTransformation):
         self.probability = p
 
 
-    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None) -> List[jnp.ndarray]:
+    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None, invert=False) -> List[jnp.ndarray]:
         if input_types is None:
             input_types = self.input_types
 
@@ -55,7 +56,7 @@ class GridShuffle(ImageLevelTransformation):
         val = []
         for input, type in zip(inputs, input_types):
             current = None
-            if same_type(type, InputType.IMAGE):
+            if same_type(type, InputType.IMAGE) or same_type(type, InputType.MASK):
                 raw_image = input
 
                 H, W, C = raw_image.shape
@@ -67,10 +68,15 @@ class GridShuffle(ImageLevelTransformation):
                     raise ValueError(f"Image width ({W}) needs to be a multiple of gridcells_x ({gx})")
 
                 image = rearrange(raw_image, '(gy h) (gx w) c -> (gy gx) h w c', gx=gx, gy=gy)
-                image = jax.random.permutation(key2, image)
+                if invert:
+                    inv_permutation = jnp.argsort(jax.random.permutation(key2, image.shape[0]))
+                    image = image[inv_permutation]
+                else:
+                    image = jax.random.permutation(key2, image)
                 image = rearrange(image, '(gy gx) h w c -> (gy h) (gx w) c', gx=gx, gy=gy)
                 current = jnp.where(do_apply, image, raw_image)
             else:
+                raise NotImplementedError(f"GridShuffle for {type} not yet implemented")
                 current = input
             val.append(current)
         return val
@@ -84,7 +90,7 @@ class _ConvolutionalBlur(ImageLevelTransformation):
         self.kernel = None
         self.kernelsize = -1
 
-    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None) -> List[jnp.ndarray]:
+    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None, invert=False) -> List[jnp.ndarray]:
         if input_types is None:
             input_types = self.input_types
 
@@ -95,11 +101,15 @@ class _ConvolutionalBlur(ImageLevelTransformation):
         for input, type in zip(inputs, input_types):
             current = None
             if same_type(type, InputType.IMAGE):
-                image_padded = jnp.pad(input, [(p0, p1), (p0, p1), (0, 0)], mode='edge')
-                image_padded = rearrange(image_padded, 'h w (c c2) -> c c2 h w', c2=1)
-                convolved = jax.lax.conv(image_padded, self.kernel, [1, 1], 'valid')
-                convolved = rearrange(convolved, 'c c2 h w -> h w (c c2)', c2=1)
-                current = jnp.where(do_apply, convolved, input)
+                if invert:
+                    warnings.warn("Trying to invert a Blur Filter, which is not invertible.")
+                    current = input
+                else:
+                    image_padded = jnp.pad(input, [(p0, p1), (p0, p1), (0, 0)], mode='edge')
+                    image_padded = rearrange(image_padded, 'h w (c c2) -> c c2 h w', c2=1)
+                    convolved = jax.lax.conv(image_padded, self.kernel, [1, 1], 'valid')
+                    convolved = rearrange(convolved, 'c c2 h w -> h w (c c2)', c2=1)
+                    current = jnp.where(do_apply, convolved, input)
             else:
                 current = input
             val.append(current)
