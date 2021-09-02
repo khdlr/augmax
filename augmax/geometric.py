@@ -14,6 +14,7 @@
 from typing import Union, List, Tuple
 from abc import abstractmethod
 import math
+import warnings
 
 import jax
 import jax.numpy as jnp
@@ -65,7 +66,7 @@ class LazyCoordinates:
                 offsets = utils.resample_image(offset_grid, points_iter, order=1).T
                 points_iter = utils.apply_perspective(points - offsets - c_x, M_inv) + c_y
             transformed_points = points_iter
-
+        
         return transformed_points.T
 
     def push_transform(self, M: jnp.ndarray):
@@ -83,26 +84,30 @@ class LazyCoordinates:
 
 class GeometricTransformation(Transformation):
     @abstractmethod
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates) -> LazyCoordinates:
-        return coordinates
-
-    @abstractmethod
-    def reverse_transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates) -> LazyCoordinates:
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False) -> LazyCoordinates:
         return coordinates
 
     def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None, invert=False) -> List[jnp.ndarray]:
         if input_types is None:
             input_types = self.input_types
 
-        H, W, _ = inputs[0].shape
-        coordinates = LazyCoordinates((H, W))
-        coordinates.final_shape = self.output_shape((H, W))
-
-        if not invert:
-            self.transform_coordinates(rng, coordinates)
+        input_shape  = inputs[0].shape[:2]
+        output_shape = self.output_shape(input_shape)
+        if invert:
+            if hasattr(self, 'shape_full'):
+                output_shape = self.shape_full
+            elif self.size_changing():
+                raise ValueError("Can't invert a size-changing transformation without running it forward once.")
         else:
-            self.reverse_transform_coordinates(rng, coordinates)
+            self.shape_full = input_shape
 
+        coordinates = LazyCoordinates(input_shape)
+        coordinates.final_shape = output_shape
+
+        if invert:
+            coordinates.current_shape = output_shape
+
+        self.transform_coordinates(rng, coordinates, invert)
         sampling_coords = coordinates.get_coordinate_grid()
 
         val = []
@@ -129,9 +134,15 @@ class GeometricTransformation(Transformation):
         return val
 
     def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
-        self.shape_in = input_shape
-        self.shape_out = input_shape
         return input_shape
+
+    def size_changing(self):
+        return False
+
+
+class SizeChangingGeometricTransformation(GeometricTransformation):
+    def size_changing(self):
+        return True
 
 
 class GeometricChain(GeometricTransformation, BaseChain):
@@ -143,41 +154,35 @@ class GeometricChain(GeometricTransformation, BaseChain):
             # assert isinstance(transform, GeometricTransformation), f"{transform} is not a GeometricTransformation!"
         self.transforms = transforms
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
-        shape_chain = [coordinates.input_shape]
-        for transform in self.transforms[:-1]:
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
+        shape_chain = [self.shape_full]
+        for transform in self.transforms:
             shape_chain.append(transform.output_shape(shape_chain[-1]))
 
         N = len(self.transforms)
         subkeys = [None]*N if rng is None else jax.random.split(rng, N)
-        for transform, current_shape, subkey in zip(reversed(self.transforms), reversed(shape_chain), reversed(subkeys)):
+
+        transforms = self.transforms
+        if not invert:
+            # Reverse the transformations iff not inverting!
+            transforms = reversed(transforms)
+            subkeys = reversed(subkeys)
+            shape_chain = reversed(shape_chain[:-1])
+
+        for transform, current_shape, subkey in zip(transforms, shape_chain, subkeys):
             coordinates.current_shape = current_shape
-            transform.transform_coordinates(subkey, coordinates)
+            transform.transform_coordinates(subkey, coordinates, invert=invert)
 
         return coordinates
-
-    def reverse_transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
-        shape_chain = [coordinates.input_shape]
-        for transform in self.transforms[:-1]:
-            shape_chain.append(transform.output_shape(shape_chain[-1]))
-
-        N = len(self.transforms)
-        subkeys = [None]*N if rng is None else jax.random.split(rng, N)
-        for transform, current_shape, subkey in zip(self.transforms, shape_chain, subkeys):
-            # TODO What do we need here?
-            coordinates.current_shape = current_shape
-            transform.reverse_transform_coordinates(subkey, coordinates)
-
-        return coordinates
-
-
 
     def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
-        self.shape_in = input_shape
+        shape = input_shape
         for transform in self.transforms:
             shape = transform.output_shape(shape)
-        self.shape_out = shape
         return shape
+
+    def size_changing(self):
+        return any(t.size_changing() for t in self.transforms)
 
 
 class HorizontalFlip(GeometricTransformation):
@@ -190,7 +195,7 @@ class HorizontalFlip(GeometricTransformation):
         super().__init__()
         self.probability = p
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         f = 1. - 2. * jax.random.bernoulli(rng, self.probability)
         transform = jnp.array([
             [1, 0, 0],
@@ -210,7 +215,7 @@ class VerticalFlip(GeometricTransformation):
         super().__init__()
         self.probability = p
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         f = 1. - 2. * jax.random.bernoulli(rng, self.probability)
         transform = jnp.array([
             [f, 0, 0],
@@ -226,16 +231,20 @@ class Rotate90(GeometricTransformation):
     def __init__(self):
         super().__init__()
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         params = jax.random.bernoulli(rng, 0.5, [2])
         flip = 1. - 2. * params[0] 
         rot = params[1]
+
+        if invert:
+            flip = (2. * rot - 1.) * flip
 
         transform = jnp.array([
             [flip * rot,       flip * (1.-rot), 0],
             [flip * (-1.+rot), flip * rot,      0],
             [0,                0,               1]
         ])
+
         coordinates.push_transform(transform)
 
 
@@ -256,9 +265,13 @@ class Rotate(GeometricTransformation):
         self.theta_min, self.theta_max = map(math.radians, angle_range)
         self.probability = p
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         do_apply = jax.random.bernoulli(rng, self.probability)
         theta = do_apply * jax.random.uniform(rng, minval=self.theta_min, maxval=self.theta_max)
+
+        if invert:
+            theta = -theta
+
         transform = jnp.array([
             [ jnp.cos(theta), jnp.sin(theta), 0],
             [-jnp.sin(theta), jnp.cos(theta), 0],
@@ -273,16 +286,21 @@ class Translate(GeometricTransformation):
         self.dx = dx
         self.dy = dy
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
+        dy = self.dy
+        dx = self.dx
+        if invert:
+            dy = -dy
+            dx = -dx
         transform = jnp.array([
-            [1, 0, -self.dy],
-            [0, 1, -self.dx],
-            [0, 0,        1]
+            [1, 0, -dy],
+            [0, 1, -dx],
+            [0, 0,   1]
         ])
         coordinates.push_transform(transform)
 
 
-class Crop(GeometricTransformation):
+class Crop(SizeChangingGeometricTransformation):
     """Crop the image at the specified x0 and y0 with given width and height
 
     Args:
@@ -319,7 +337,7 @@ class Crop(GeometricTransformation):
         return (self.height, self.width)
 
 
-class Resize(GeometricTransformation):
+class Resize(SizeChangingGeometricTransformation):
     def __init__(self, width: int, height: int = None):
         super().__init__()
         self.width = width
@@ -331,24 +349,26 @@ class Resize(GeometricTransformation):
     def __repr__(self):
         return f'Resize({self.width}, {self.height})'
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         H, W = coordinates.current_shape
         H_, W_ = self.height, self.width
 
-        # Out matrix:
-        # [ 1/zoom    0   1/c_y ]
-        # [   0    1/zoom 1/c_x ]
-        # [   0       0     1   ]
+        sy = H / H_
+        sx = W / W_
+        if invert:
+            sy = 1 / sy
+            sx = 1 / sx
+
         transform = jnp.array([
-            [H / H_,       0, 0],
-            [      0, W / W_, 0],
-            [      0,      0, 1],
+            [sy,  0, 0],
+            [ 0, sx, 0],
+            [ 0,  0, 1],
         ])
 
         coordinates.push_transform(transform)
 
 
-class CenterCrop(GeometricTransformation):
+class CenterCrop(SizeChangingGeometricTransformation):
     """Extracts a central crop from the image with given width and height.
 
     Args:
@@ -363,7 +383,7 @@ class CenterCrop(GeometricTransformation):
         self.width = width
         self.height = width if height is None else height
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         # Cropping is done implicitly via output_shape
         pass
 
@@ -374,7 +394,7 @@ class CenterCrop(GeometricTransformation):
         return f'CenterCrop({self.width}, {self.height})'
 
 
-class RandomCrop(GeometricTransformation):
+class RandomCrop(SizeChangingGeometricTransformation):
     """Extracts a random crop from the image with given width and height.
 
     Args:
@@ -389,7 +409,7 @@ class RandomCrop(GeometricTransformation):
         self.width = width
         self.height = width if height is None else height
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         H, W = coordinates.current_shape
 
         limit_y = (H - self.height) / 2
@@ -398,6 +418,10 @@ class RandomCrop(GeometricTransformation):
         center_y, center_x = jax.random.uniform(rng, [2],
                 minval=jnp.array([-limit_y, -limit_x]),
                 maxval=jnp.array([limit_y, limit_x]))
+
+        if invert:
+            center_y = -center_y
+            center_x = -center_x
 
         transform = jnp.array([
             [1, 0,  center_y],
@@ -410,7 +434,7 @@ class RandomCrop(GeometricTransformation):
         return (self.height, self.width)
 
 
-class RandomSizedCrop(GeometricTransformation):
+class RandomSizedCrop(SizeChangingGeometricTransformation):
     """Extracts a randomly sized crop from the image and rescales it to the given width and height.
 
     Args:
@@ -434,7 +458,7 @@ class RandomSizedCrop(GeometricTransformation):
         self.max_zoom = zoom_range[1]
         self.prevent_underzoom = prevent_underzoom
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         H, W = coordinates.current_shape
         key1, key2 = jax.random.split(rng)
 
@@ -458,10 +482,16 @@ class RandomSizedCrop(GeometricTransformation):
         # [ 1/zoom    0   1/c_y ]
         # [   0    1/zoom 1/c_x ]
         # [   0       0     1   ]
-        transform = jnp.concatenate([
-            jnp.concatenate([jnp.eye(2), center.reshape(2, 1)], axis=1) / zoom,
-            jnp.array([[0, 0, 1]])
-        ], axis=0)
+        if not invert:
+            transform = jnp.concatenate([
+                jnp.concatenate([jnp.eye(2), center.reshape(2, 1)], axis=1) / zoom,
+                jnp.array([[0, 0, 1]])
+            ], axis=0)
+        else:
+            transform = jnp.concatenate([
+                jnp.concatenate([jnp.eye(2) * zoom, -center.reshape(2, 1)], axis=1),
+                jnp.array([[0, 0, 1]])
+            ], axis=0)
 
         coordinates.push_transform(transform)
 
@@ -483,7 +513,11 @@ class Warp(GeometricTransformation):
         self.strength = strength
         self.coarseness = coarseness
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
+        if invert:
+            warnings.warn("Inverting a Warp transform not yet implemented. Returning warped image as is.")
+            return
+
         H, W = coordinates.final_shape
 
         H_, W_ = H // self.coarseness, W // self.coarseness
