@@ -316,7 +316,7 @@ class Crop(SizeChangingGeometricTransformation):
         self.width = w
         self.height = h
 
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
         H, W = coordinates.current_shape
 
         center_x = self.x0 + self.width / 2 - W / 2
@@ -326,6 +326,10 @@ class Crop(SizeChangingGeometricTransformation):
         # => push it to (-H/2, -W/2) -- (H/2, W/2) reference frame
 
         # Forward transform: Translate by (dx, dy)
+        if invert:
+            center_y = -center_y
+            center_x = -center_x
+
         transform = jnp.array([
             [1, 0,  center_y],
             [0, 1,  center_x],
