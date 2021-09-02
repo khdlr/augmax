@@ -16,21 +16,24 @@ from typing import List, Tuple
 
 import jax
 import jax.numpy as jnp
+import warnings
 
 from .base import Transformation, BaseChain, InputType, same_type
 from .utils import log_uniform, rgb_to_hsv, hsv_to_rgb
+from .functional import colorspace as F
 
 
 class ColorspaceTransformation(Transformation):
     @abstractmethod
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         return pixel
 
-    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None) -> List[jnp.ndarray]:
+    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None, invert=False) -> List[jnp.ndarray]:
         if input_types is None:
             input_types = self.input_types
 
-        full_op = jax.jit(jax.vmap(jax.vmap(self.pixelwise, [None, 0], 0), [None, 1], 1))
+        op = jax.partial(self.pixelwise, invert=invert)
+        full_op = jax.jit(jax.vmap(jax.vmap(op, [None, 0], 0), [None, 1], 1))
 
         val = []
         for input, type in zip(inputs, input_types):
@@ -49,11 +52,17 @@ class ColorspaceChain(ColorspaceTransformation, BaseChain):
         super().__init__(input_types)
         self.transforms = transforms
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         N = len(self.transforms)
         subkeys = [None]*N if rng is None else jax.random.split(rng, N)
-        for transform, subkey in zip(self.transforms, subkeys):
-            pixel = transform.pixelwise(subkey, pixel)
+
+        transforms = self.transforms
+        if invert:
+            transforms = reversed(transforms)
+            subkeys = reversed(subkeys)
+
+        for transform, subkey in zip(transforms, subkeys):
+            pixel = transform.pixelwise(subkey, pixel, invert=invert)
         return pixel
 
 
@@ -61,8 +70,11 @@ class ByteToFloat(ColorspaceTransformation):
     """Transforms images from uint8 representation (values 0-255)
     to normalized float representation (values 0.0-1.0)
     """
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
-        return pixel.astype(jnp.float32) / 255.0
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
+        if invert:
+            return jnp.clip(255.0 * pixel, 0, 255).astype(jnp.uint8)
+        else:
+            return pixel.astype(jnp.float32) / 255.0
 
 
 class Normalize(ColorspaceTransformation):
@@ -84,8 +96,11 @@ class Normalize(ColorspaceTransformation):
         self.mean = jnp.asarray(mean)
         self.std = jnp.asarray(std)
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
-        return (pixel - self.mean) / self.std
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
+        if not invert:
+            return (pixel - self.mean) / self.std
+        else:
+            return (pixel * self.std) + self.mean
 
 
 class ChannelShuffle(ColorspaceTransformation):
@@ -101,12 +116,20 @@ class ChannelShuffle(ColorspaceTransformation):
         super().__init__(input_types)
         self.probability = p
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         k1, k2 = jax.random.split(rng)
-        return jnp.where(jax.random.bernoulli(k2, self.probability),
-            jax.random.permutation(k1, pixel),
-            pixel
-        )
+        do_apply = jax.random.bernoulli(k2, self.probability)
+        if not invert:
+            return jnp.where(do_apply,
+                jax.random.permutation(k1, pixel),
+                pixel
+            )
+        else:
+            inv_permutation = jnp.argsort(jax.random.permutation(k1, pixel.shape[0]))
+            return jnp.where(do_apply,
+                pixel[inv_permutation],
+                pixel
+            )
 
 
 class RandomGamma(ColorspaceTransformation):
@@ -125,7 +148,7 @@ class RandomGamma(ColorspaceTransformation):
         self.range = range
         self.probability = p
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         if pixel.dtype != jnp.float32:
             raise ValueError(f"RandomGamma can only be applied to float images, but the input is {pixel.dtype}. "
                     "Please call ByteToFloat first.")
@@ -134,7 +157,10 @@ class RandomGamma(ColorspaceTransformation):
         random_gamma = log_uniform(k1, minval=self.range[0], maxval=self.range[1])
         gamma = jnp.where(jax.random.bernoulli(k2, self.probability), random_gamma, 1.0)
 
-        return jnp.power(pixel, gamma)
+        if not invert:
+            return jnp.power(pixel, gamma)
+        else:
+            return jnp.power(pixel, 1/gamma)
 
 
 class RandomBrightness(ColorspaceTransformation):
@@ -154,7 +180,7 @@ class RandomBrightness(ColorspaceTransformation):
         self.maxval = range[1] / 2.0
         self.probability = p
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         if pixel.dtype != jnp.float32:
             raise ValueError(f"RandomContrast can only be applied to float images, but the input is {pixel.dtype}. "
                     "Please call ByteToFloat first.")
@@ -163,12 +189,8 @@ class RandomBrightness(ColorspaceTransformation):
         random_brightness = jax.random.uniform(k1, minval=self.minval, maxval=self.maxval)
         brightness = jnp.where(jax.random.bernoulli(k2, self.probability), random_brightness, 1.0)
         # cf. https://gitlab.gnome.org/GNOME/gimp/-/blob/master/app/operations/gimpoperationbrightnesscontrast.c
-        pixel = jnp.where(brightness < 0.0,
-            pixel * (1.0 + brightness),
-            pixel + ((1.0 - pixel) * brightness)
-        )
 
-        return pixel
+        return F.adjust_brightness(pixel, brightness, invert=invert)
 
 
 class RandomContrast(ColorspaceTransformation):
@@ -188,7 +210,7 @@ class RandomContrast(ColorspaceTransformation):
         self.maxval = range[1] / 2.0
         self.probability = p
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         if pixel.dtype != jnp.float32:
             raise ValueError(f"RandomContrast can only be applied to float images, but the input is {pixel.dtype}. "
                     "Please call ByteToFloat first.")
@@ -196,12 +218,7 @@ class RandomContrast(ColorspaceTransformation):
         k1, k2 = jax.random.split(rng)
         random_contrast = jax.random.uniform(k1, minval=self.minval, maxval=self.maxval)
         contrast = jnp.where(jax.random.bernoulli(k2, self.probability), random_contrast, 0.0)
-        slant = jnp.tan((contrast + 1.0) * (jnp.pi / 4))
-        # cf. https://gitlab.gnome.org/GNOME/gimp/-/blob/master/app/operations/gimpoperationbrightnesscontrast.c
-        # pixel = (pixel - 0.5) * slant + 0.5
-        offset = 0.5 * (1 - slant)
-        pixel = jnp.clip(pixel * slant + offset, 0.0, 1.0)
-        return pixel
+        return F.adjust_contrast(pixel, contrast, invert=invert)
 
 
 class ColorJitter(ColorspaceTransformation):
@@ -231,31 +248,35 @@ class ColorJitter(ColorspaceTransformation):
         if p < 1:
             self.keys_needed += 1
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         if pixel.shape != (3, ):
             raise ValueError(f"ColorJitter only supports RGB imagery for now, got {pixel.shape}")
         if pixel.dtype != jnp.float32:
             raise ValueError(f"ColorJitter can only be applied to float images, but the input is {pixel.dtype}. "
                     "Please call ByteToFloat first.")
-        keys = iter(jax.random.split(rng, self.keys_needed))
+        keys = jax.random.split(rng, self.keys_needed)
         hue, saturation, value = rgb_to_hsv(pixel)
 
-        if self.brightness > 0:
-            value = value + jax.random.uniform(next(keys), minval=-self.brightness, maxval=self.brightness)
-        if self.contrast > 0:
-            contrast = jax.random.uniform(next(keys), minval=-self.contrast, maxval=self.contrast)
-            slant = jnp.tan((contrast + 1.0) * (jnp.pi / 4))
-            # cf. https://gitlab.gnome.org/GNOME/gimp/-/blob/master/app/operations/gimpoperationbrightnesscontrast.c
-            offset = 0.5 * (1 - slant)
-            value = value * slant + offset
-        if self.hue > 0:
-            hue = hue + jax.random.uniform(next(keys), minval=-self.hue, maxval=self.hue)
-        if self.saturation > 0:
-            saturation = jnp.clip(
-                saturation + jax.random.uniform(next(keys), minval=-self.saturation, maxval=self.saturation),
-                0, 1)
-        if self.contrast > 0 or self.brightness > 0:
-            value = jnp.clip(value, 0, 1)
+        ops = ['brightness', 'contrast', 'hue', 'saturation']
+        if invert:
+            ops = reversed(ops)
+            keys = reversed(keys)
+
+        for op, key in zip(ops, keys):
+            strength = getattr(self, op)
+            if strength <= 0:
+                continue
+            amount = jax.random.uniform(key, minval=-strength, maxval=strength)
+            if op == 'brightness':
+                value = F.adjust_brightness(value, amount, invert=invert)
+            elif op == 'contrast':
+                value = F.adjust_contrast(value, amount, invert=invert)
+            elif op == 'hue':
+                if invert:
+                    amount = -amount
+                hue = hue + amount
+            elif op == 'saturation':
+                F.adjust_brightness(saturation, amount, invert=invert)
 
         transformed = hsv_to_rgb(hue, saturation, value)
 
@@ -279,15 +300,18 @@ class RandomGrayscale(ColorspaceTransformation):
         super().__init__(input_types)
         self.probability = p
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         if pixel.dtype != jnp.float32:
-            raise ValueError(f"RandomContrast can only be applied to float images, but the input is {pixel.dtype}. "
+            raise ValueError(f"RandomGrayscale can only be applied to float images, but the input is {pixel.dtype}. "
                     "Please call ByteToFloat first.")
 
+        if invert:
+            warnings.warn("Trying to invert a Grayscale Filter, which is not invertible.")
+            return pixel
+
         do_apply = jax.random.bernoulli(rng, self.probability)
-        grayscale = jnp.broadcast_to(pixel.mean(axis=-1, keepdims=True), pixel.shape)
         return jnp.where(do_apply,
-                grayscale,
+                F.to_grayscale(pixel),
                 pixel
         )
 
@@ -309,10 +333,14 @@ class Solarization(ColorspaceTransformation):
         self.threshold = threshold
         self.probability = p
 
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray) -> jnp.ndarray:
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         if pixel.dtype != jnp.float32:
             raise ValueError(f"Solarization can only be applied to float images, but the input is {pixel.dtype}. "
                     "Please call ByteToFloat first.")
+
+        if invert:
+            warnings.warn("Trying to invert a Solarization Filter, which is not invertible.")
+            return pixel
 
         do_apply = jax.random.bernoulli(rng, self.probability)
         solarized = jnp.where((pixel > self.threshold) & do_apply,

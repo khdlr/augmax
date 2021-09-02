@@ -17,7 +17,6 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.ndimage as jnd
 
-
 def apply_perspective(xy: jnp.ndarray, M: jnp.ndarray) -> jnp.ndarray:
     xyz = jnp.concatenate([xy, jnp.ones([1, *xy.shape[1:]])])
     xyz = jnp.tensordot(M, xyz, axes=1)
@@ -92,5 +91,3 @@ def unpack_list_if_singleton(arbitrary_list: Sequence[T]) -> Union[T, Sequence[T
         return arbitrary_list[0]
     else:
         return tuple(arbitrary_list)
-
-

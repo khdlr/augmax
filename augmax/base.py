@@ -48,8 +48,14 @@ class Transformation(ABC):
         augmented = self.apply(rng, inputs, self.input_types)
         return unpack_list_if_singleton(augmented)
 
+    def invert(self, rng: jnp.ndarray, *inputs: jnp.ndarray) -> Union[jnp.ndarray, Sequence[jnp.ndarray]]:
+        if len(self.input_types) != len(inputs):
+            raise ValueError(f"List of input types (length {len(self.input_types)}) must match inputs to Augmentation (length {len(inputs)})")
+        augmented = self.apply(rng, inputs, self.input_types, invert=True)
+        return unpack_list_if_singleton(augmented)
+
     @abstractmethod
-    def apply(self, rng: jnp.ndarray, inputs: Sequence[jnp.ndarray], input_types: Sequence[InputType]=None) -> List[jnp.ndarray]:
+    def apply(self, rng: jnp.ndarray, inputs: Sequence[jnp.ndarray], input_types: Sequence[InputType]=None, invert=False) -> List[jnp.ndarray]:
         if input_types is None:
             input_types = self.input_types
         val = []
@@ -63,16 +69,21 @@ class BaseChain(Transformation):
         super().__init__(input_types)
         self.transforms = transforms
 
-    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: Sequence[InputType]=None) -> List[jnp.ndarray]:
+    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: Sequence[InputType]=None, invert=False) -> List[jnp.ndarray]:
         if input_types is None:
             input_types = self.input_types
 
         N = len(self.transforms)
         subkeys = [None]*N if rng is None else jax.random.split(rng, N)
 
+        transforms = self.transforms
+        if invert:
+            transforms = reversed(transforms)
+            subkeys = reversed(subkeys)
+
         images = list(inputs)
-        for transform, subkey in zip(self.transforms, subkeys):
-            images = transform.apply(subkey, images, input_types)
+        for transform, subkey in zip(transforms, subkeys):
+            images = transform.apply(subkey, images, input_types, invert=invert)
         return images 
 
     def __repr__(self):

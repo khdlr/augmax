@@ -86,7 +86,11 @@ class GeometricTransformation(Transformation):
     def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates) -> LazyCoordinates:
         return coordinates
 
-    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None) -> List[jnp.ndarray]:
+    @abstractmethod
+    def reverse_transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates) -> LazyCoordinates:
+        return coordinates
+
+    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None, invert=False) -> List[jnp.ndarray]:
         if input_types is None:
             input_types = self.input_types
 
@@ -94,7 +98,10 @@ class GeometricTransformation(Transformation):
         coordinates = LazyCoordinates((H, W))
         coordinates.final_shape = self.output_shape((H, W))
 
-        self.transform_coordinates(rng, coordinates)
+        if not invert:
+            self.transform_coordinates(rng, coordinates)
+        else:
+            self.reverse_transform_coordinates(rng, coordinates)
 
         sampling_coords = coordinates.get_coordinate_grid()
 
@@ -122,6 +129,8 @@ class GeometricTransformation(Transformation):
         return val
 
     def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
+        self.shape_in = input_shape
+        self.shape_out = input_shape
         return input_shape
 
 
@@ -141,16 +150,33 @@ class GeometricChain(GeometricTransformation, BaseChain):
 
         N = len(self.transforms)
         subkeys = [None]*N if rng is None else jax.random.split(rng, N)
-        for transform, current_shape, subkey in zip(reversed(self.transforms), reversed(shape_chain), subkeys):
+        for transform, current_shape, subkey in zip(reversed(self.transforms), reversed(shape_chain), reversed(subkeys)):
             coordinates.current_shape = current_shape
             transform.transform_coordinates(subkey, coordinates)
 
         return coordinates
 
+    def reverse_transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates):
+        shape_chain = [coordinates.input_shape]
+        for transform in self.transforms[:-1]:
+            shape_chain.append(transform.output_shape(shape_chain[-1]))
+
+        N = len(self.transforms)
+        subkeys = [None]*N if rng is None else jax.random.split(rng, N)
+        for transform, current_shape, subkey in zip(self.transforms, shape_chain, subkeys):
+            # TODO What do we need here?
+            coordinates.current_shape = current_shape
+            transform.reverse_transform_coordinates(subkey, coordinates)
+
+        return coordinates
+
+
+
     def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
-        shape = input_shape
+        self.shape_in = input_shape
         for transform in self.transforms:
             shape = transform.output_shape(shape)
+        self.shape_out = shape
         return shape
 
 
