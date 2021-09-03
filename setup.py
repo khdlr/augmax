@@ -27,7 +27,7 @@ setup(
     description='Efficiently Composable Data Augmentation on the GPU with Jax',
     author='Konrad Heidler',
     packages=find_packages(),
-    python_requires='>=3.7',
+    python_requires='>=3.6',
     install_requires = [
         'jax>=0.1',
         'einops>=0.3'
