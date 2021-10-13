@@ -115,10 +115,10 @@ class GeometricTransformation(Transformation):
             current = None
             if same_type(type, InputType.IMAGE) or same_type(type, InputType.DENSE):
                 # Linear Interpolation for Images
-                current = utils.resample_image(input, sampling_coords, order=1)
+                current = utils.resample_image(input, sampling_coords, order=1, mode='constant')
             elif same_type(type, InputType.MASK):
                 # Nearest Interpolation for Masks
-                current = utils.resample_image(input, sampling_coords, order=0)
+                current = utils.resample_image(input, sampling_coords, order=0, mode='constant')
             elif same_type(type, InputType.KEYPOINTS):
                 current = coordinates.apply_to_points(input)
             elif same_type(type, InputType.CONTOUR):
