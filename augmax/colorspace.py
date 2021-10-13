@@ -13,6 +13,7 @@
 # limitations under the License.
 from abc import abstractmethod
 from typing import List, Tuple
+from functools import partial
 
 import jax
 import jax.numpy as jnp
@@ -32,7 +33,7 @@ class ColorspaceTransformation(Transformation):
         if input_types is None:
             input_types = self.input_types
 
-        op = jax.partial(self.pixelwise, invert=invert)
+        op = partial(self.pixelwise, invert=invert)
         full_op = jax.jit(jax.vmap(jax.vmap(op, [None, 0], 0), [None, 1], 1))
 
         val = []
