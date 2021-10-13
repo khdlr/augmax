@@ -56,7 +56,7 @@ class GridShuffle(ImageLevelTransformation):
         val = []
         for input, type in zip(inputs, input_types):
             current = None
-            if same_type(type, InputType.IMAGE) or same_type(type, InputType.MASK):
+            if same_type(type, InputType.IMAGE) or same_type(type, InputType.MASK) or same_type(type, InputType.DENSE):
                 raw_image = input
 
                 H, W, C = raw_image.shape

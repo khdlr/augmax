@@ -66,7 +66,7 @@ class LazyCoordinates:
                 offsets = utils.resample_image(offset_grid, points_iter, order=1).T
                 points_iter = utils.apply_perspective(points - offsets - c_x, M_inv) + c_y
             transformed_points = points_iter
-        
+
         return transformed_points.T
 
     def push_transform(self, M: jnp.ndarray):
@@ -113,7 +113,7 @@ class GeometricTransformation(Transformation):
         val = []
         for input, type in zip(inputs, input_types):
             current = None
-            if same_type(type, InputType.IMAGE):
+            if same_type(type, InputType.IMAGE) or same_type(type, InputType.DENSE):
                 # Linear Interpolation for Images
                 current = utils.resample_image(input, sampling_coords, order=1)
             elif same_type(type, InputType.MASK):

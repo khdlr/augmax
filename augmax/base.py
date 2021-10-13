@@ -23,6 +23,7 @@ from .utils import unpack_list_if_singleton
 class InputType(Enum):
     IMAGE = 'image'
     MASK = 'mask'
+    DENSE = 'dense'
     CONTOUR = 'contour'
     KEYPOINTS = 'keypoints'
 
