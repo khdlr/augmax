@@ -94,9 +94,11 @@ class GeometricTransformation(Transformation):
         input_shape  = inputs[0].shape[:2]
         output_shape = self.output_shape(input_shape)
         if invert:
-            if hasattr(self, 'shape_full'):
+            if not self.size_changing():
+                output_shape = input_shape
+            elif hasattr(self, 'shape_full'):
                 output_shape = self.shape_full
-            elif self.size_changing():
+            else:
                 raise ValueError("Can't invert a size-changing transformation without running it forward once.")
         else:
             self.shape_full = input_shape
@@ -138,6 +140,11 @@ class GeometricTransformation(Transformation):
 
     def size_changing(self):
         return False
+        if invert:
+            if hasattr(self, 'shape_full'):
+                output_shape = self.shape_full
+            elif self.size_changing():
+                raise ValueError("Can't invert a size-changing transformation without running it forward once.")
 
 
 class SizeChangingGeometricTransformation(GeometricTransformation):
@@ -149,13 +156,12 @@ class GeometricChain(GeometricTransformation, BaseChain):
     def __init__(self, *transforms: GeometricTransformation):
         super().__init__()
         for transform in transforms:
-            # TODO: Re-enable this, autoreload breaks this...
-            pass
-            # assert isinstance(transform, GeometricTransformation), f"{transform} is not a GeometricTransformation!"
+            assert isinstance(transform, GeometricTransformation), f"{transform} is not a GeometricTransformation!"
         self.transforms = transforms
 
     def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False):
-        shape_chain = [self.shape_full]
+        shape_chain = [coordinates.input_shape]
+
         for transform in self.transforms:
             shape_chain.append(transform.output_shape(shape_chain[-1]))
 
