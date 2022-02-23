@@ -30,22 +30,21 @@ class ColorspaceTransformation(Transformation):
         return pixel
 
     def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None, invert=False) -> List[jnp.ndarray]:
+        input_types = input_types or self.input_types
         if input_types is None:
-            input_types = self.input_types
+            input_types = jax.tree_map(lambda x: InputType.IMAGE, inputs)
 
         op = partial(self.pixelwise, invert=invert)
         full_op = jax.jit(jax.vmap(jax.vmap(op, [None, 0], 0), [None, 1], 1))
 
         val = []
-        for input, type in zip(inputs, input_types):
-            current = None
-            if same_type(type, InputType.IMAGE):
+        def inner(input, input_type):
+            if same_type(input_type, InputType.IMAGE):
                 # Linear Interpolation for Images
-                current = full_op(rng, input)
+                return full_op(rng, input)
             else:
-                current = input
-            val.append(current)
-        return val
+                return input
+        return jax.tree_multimap(inner, inputs, input_types)
 
 
 class ColorspaceChain(ColorspaceTransformation, BaseChain):

@@ -17,7 +17,7 @@ from .colorspace import ColorspaceChain, ColorspaceTransformation
 
 
 class Chain(BaseChain):
-    def __init__(self, *transforms: Transformation, input_types=[InputType.IMAGE]):
+    def __init__(self, *transforms: Transformation, input_types=None):
         geometric = []
         colorspace = []
         other = []
@@ -63,24 +63,24 @@ class Chain(BaseChain):
 
 
 class OptimizedChain(BaseChain):
-    def __init__(self, *transforms: Transformation, input_types=[]):
-        geometric = []
-        colorspace = []
-        other = []
-        for transform in transforms:
-            if isinstance(transform, GeometricTransformation):
-                geometric.append(transform)
-            elif isinstance(transform, ColorspaceTransformation):
-                colorspace.append(transform)
-            else:
-                other.append(transform)
+    def __init__(self, *transforms: Transformation, input_types=None):
+      geometric = []
+      colorspace = []
+      other = []
+      for transform in transforms:
+          if isinstance(transform, GeometricTransformation):
+              geometric.append(transform)
+          elif isinstance(transform, ColorspaceTransformation):
+              colorspace.append(transform)
+          else:
+              other.append(transform)
 
-        sub_chains = []
-        if geometric:
-            sub_chains.append(GeometricChain(*geometric))
-        if colorspace:
-            sub_chains.append(ColorspaceChain(*colorspace))
-        if other:
-            sub_chains.append(Chain(*other))
+      sub_chains = []
+      if geometric:
+          sub_chains.append(GeometricChain(*geometric))
+      if colorspace:
+          sub_chains.append(ColorspaceChain(*colorspace))
+      if other:
+          sub_chains.append(Chain(*other))
 
-        super().__init__(*sub_chains, input_types=input_types)
+      super().__init__(*sub_chains, input_types=input_types)

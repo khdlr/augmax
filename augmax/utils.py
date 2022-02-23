@@ -17,18 +17,19 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.ndimage as jnd
 
-def apply_perspective(xy: jnp.ndarray, M: jnp.ndarray) -> jnp.ndarray:
-    xyz = jnp.concatenate([xy, jnp.ones([1, *xy.shape[1:]])])
-    xyz = jnp.tensordot(M, xyz, axes=1)
-    yx, z = jnp.split(xyz, [2])
-    return yx / z
+
+def tree_first(pytree):
+  tree_flat, _ = jax.tree_flatten(pytree)
+  return tree_flat[0]
 
 
-def resample_image(image: jnp.ndarray, coordinates: jnp.ndarray, order: int=1, mode: str='nearest', cval: Any=0):
+def resample_image(image: jnp.ndarray, coordinates: jnp.ndarray, order: int=1, mode: str='constant', cval: Any=0):
     H, W, *C = image.shape
     D, *S_out = coordinates.shape
     assert D == 2, f'Expected first dimension of coordinates array to have size 2, got {coordinates.shape}'
-    coordinates = coordinates.reshape(2, -1)
+    # FIXME: would expect the constant to be 0.5, but for some reason it needs to be -0.5
+    half_size = jnp.array([H/2, W/2]).reshape(2, 1) - 0.5  
+    coordinates = coordinates.reshape(2, -1) * (H/2) + half_size
 
     def resample_channel(channel: jnp.ndarray):
         return jnd.map_coordinates(channel, coordinates, order=order, mode=mode, cval=cval)
@@ -85,9 +86,8 @@ def hsv_to_rgb(hue: jnp.ndarray, saturation: jnp.ndarray, value: jnp.ndarray) ->
     return f
 
 
-T = TypeVar('T')
-def unpack_list_if_singleton(arbitrary_list: Sequence[T]) -> Union[T, Sequence[T]]:
-    if len(arbitrary_list) == 1:
-        return arbitrary_list[0]
-    else:
-        return tuple(arbitrary_list)
+def centered_linspace(start, end, count):
+    """Returns the midpoints of `count` equally sized
+    intervals fit in the interval [start, end]"""
+    step = (end - start) / count
+    return jnp.arange(start + step/2, end, step)
