@@ -5,6 +5,7 @@
 
 installation
 notebooks/Getting Started
+philosophy
 ```
 
 ```{toctree}
