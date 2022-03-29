@@ -48,6 +48,6 @@ transformed_image = jax.jit(transform)(rng, image)
 ### Augmenting an entire batch of images on the GPU
 ```python
 sub_rngs = jax.random.split(rng, images.shape[0])
-transformed_images = jax.jit(jax.vmap(transform))(sub_rng, images)
+transformed_images = jax.jit(jax.vmap(transform))(sub_rngs, images)
 ```
 
