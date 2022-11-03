@@ -1,3 +1,4 @@
+Jinja2<3.1
 myst_parser
 myst-nb
 matplotlib
