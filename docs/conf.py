@@ -8,7 +8,7 @@ author = 'Konrad Heidler'
 version = ''
 release = ''
 
-needs_sphinx = '2.1'
+needs_sphinx = '5.0.0'
 
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.append(os.path.abspath('sphinx_autoaug'))
@@ -33,9 +33,9 @@ intersphinx_mapping = {
 source_suffix = ['.rst', '.ipynb', '.md']
 
 # Myst-NB
-execution_timeout = 100
-jupyter_execute_notebooks = "force"
-execution_allow_errors = True
+nb_execution_mode = "force"
+nb_execution_timeout = 100
+nb_execution_allow_errors = True
 
 exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
