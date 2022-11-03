@@ -31,10 +31,9 @@ def generate_images(augmentation, args, kwargs={}, to_float: bool=False):
     transform = jax.jit(jax.vmap(transform, (0, None)))
     images = transform(keys, image)
 
-    if augname == 'ByteToFloat' or (to_float and augname not in ['Normalize']):
-        # assert images.min() >= 0.0, f"augmented images.min() = {images.min()}, which should not happen!"
-        # assert images.max() <= 1.0, f"augmented images.max() = {images.max()}, which should not happen!"
-        images = (images * 255.0).astype(jnp.uint8)
+    if images.dtype == jnp.float32:
+      # if augname == 'ByteToFloat' or to_float:
+      images = (images * 255.0).astype(jnp.uint8)
 
     imgdir = Path(basedir / 'generated_imgs').absolute()
     imgdir.mkdir(exist_ok=True)
