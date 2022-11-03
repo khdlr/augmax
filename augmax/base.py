@@ -13,11 +13,10 @@
 # limitations under the License.
 import jax
 import jax.numpy as jnp
+import numpy as np
 from abc import ABC, abstractmethod
-from typing import Union, List, Tuple, Sequence
+from typing import Union, List, Tuple, Dict, Hashable
 from enum import Enum
-
-from .utils import unpack_list_if_singleton
 
  
 class InputType(Enum):
@@ -27,8 +26,17 @@ class InputType(Enum):
     CONTOUR = 'contour'
     KEYPOINTS = 'keypoints'
 
+PyTree = Union[jnp.ndarray,
+               Tuple['PyTree', ...],
+               List['PyTree'],
+               Dict[Hashable, 'PyTree'],
+               InputType,
+               None]
+RNGKey = Union[jax.random.KeyArray, None]
+
 
 def same_type(left_type, right_type):
+    print(left_type, isinstance(left_type, InputType))
     if isinstance(left_type, InputType):
         left_type = left_type.value
     if isinstance(right_type, InputType):
@@ -37,43 +45,36 @@ def same_type(left_type, right_type):
 
 
 class Transformation(ABC):
-    def __init__(self, input_types=None):
-            if input_types is None:
-                self.input_types = [InputType.IMAGE]
-            else:
-                self.input_types = input_types
+    def __init__(self, input_types: PyTree=None):
+        self.input_types = input_types
 
-    def __call__(self, rng: jnp.ndarray, *inputs: jnp.ndarray) -> Union[jnp.ndarray, Sequence[jnp.ndarray]]:
-        if len(self.input_types) != len(inputs):
-            raise ValueError(f"List of input types (length {len(self.input_types)}) must match inputs to Augmentation (length {len(inputs)})")
-        augmented = self.apply(rng, inputs, self.input_types)
-        return unpack_list_if_singleton(augmented)
+    def __call__(self, rng: jnp.ndarray, inputs: PyTree, input_types: PyTree=None) -> PyTree:
+        try:
+          jax.tree_map(lambda _x, _y: None, inputs, self.input_types)
+        except ValueError:
+            raise ValueError(f"PyTrees `inputs` and `input_types` are incompatible for Augmentation")
+        if input_types is None:
+          input_types = self.input_types
+        if input_types is None:
+          input_types = jax.tree_map(lambda _: InputType.IMAGE, inputs)
+        augmented = self.apply(rng, inputs, input_types)
+        return augmented
 
-    def invert(self, rng: jnp.ndarray, *inputs: jnp.ndarray) -> Union[jnp.ndarray, Sequence[jnp.ndarray]]:
-        if len(self.input_types) != len(inputs):
-            raise ValueError(f"List of input types (length {len(self.input_types)}) must match inputs to Augmentation (length {len(inputs)})")
+    def invert(self, rng: jnp.ndarray, inputs: PyTree) -> PyTree:
         augmented = self.apply(rng, inputs, self.input_types, invert=True)
-        return unpack_list_if_singleton(augmented)
+        return augmented
 
     @abstractmethod
-    def apply(self, rng: jnp.ndarray, inputs: Sequence[jnp.ndarray], input_types: Sequence[InputType]=None, invert=False) -> List[jnp.ndarray]:
-        if input_types is None:
-            input_types = self.input_types
-        val = []
-        for input, type in zip(inputs, input_types):
-            val.append(input)
-        return val
+    def apply(self, rng: jnp.ndarray, inputs: PyTree, input_types: PyTree=None, invert=False) -> PyTree:
+        return inputs
 
 
 class BaseChain(Transformation):
-    def __init__(self, *transforms: Transformation, input_types=[InputType.IMAGE]):
+    def __init__(self, *transforms: Transformation, input_types=None):
         super().__init__(input_types)
         self.transforms = transforms
 
-    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: Sequence[InputType]=None, invert=False) -> List[jnp.ndarray]:
-        if input_types is None:
-            input_types = self.input_types
-
+    def apply(self, rng: RNGKey, inputs: PyTree, input_types: PyTree, invert=False) -> PyTree:
         N = len(self.transforms)
         subkeys = [None]*N if rng is None else jax.random.split(rng, N)
 
@@ -82,10 +83,10 @@ class BaseChain(Transformation):
             transforms = reversed(transforms)
             subkeys = reversed(subkeys)
 
-        images = list(inputs)
+        values = inputs
         for transform, subkey in zip(transforms, subkeys):
-            images = transform.apply(subkey, images, input_types, invert=invert)
-        return images 
+            values = transform.apply(subkey, values, input_types, invert=invert)
+        return values
 
     def __repr__(self):
         members_repr = ",\n".join(str(t) for t in self.transforms)

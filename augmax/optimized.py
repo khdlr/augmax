@@ -17,7 +17,7 @@ from .colorspace import ColorspaceChain, ColorspaceTransformation
 
 
 class Chain(BaseChain):
-    def __init__(self, *transforms: Transformation, input_types=[InputType.IMAGE]):
+    def __init__(self, *transforms: Transformation, input_types=None):
         geometric = []
         colorspace = []
         other = []
@@ -63,7 +63,7 @@ class Chain(BaseChain):
 
 
 class OptimizedChain(BaseChain):
-    def __init__(self, *transforms: Transformation, input_types=[]):
+    def __init__(self, *transforms: Transformation, input_types=None):
         geometric = []
         colorspace = []
         other = []

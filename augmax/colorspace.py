@@ -19,33 +19,27 @@ import jax
 import jax.numpy as jnp
 import warnings
 
-from .base import Transformation, BaseChain, InputType, same_type
+from .base import Transformation, BaseChain, InputType, same_type, PyTree, RNGKey
 from .utils import log_uniform, rgb_to_hsv, hsv_to_rgb
 from .functional import colorspace as F
 
 
 class ColorspaceTransformation(Transformation):
     @abstractmethod
-    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
+    def pixelwise(self, rng: RNGKey, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
         return pixel
 
-    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None, invert=False) -> List[jnp.ndarray]:
-        if input_types is None:
-            input_types = self.input_types
-
+    def apply(self, rng: RNGKey, inputs: PyTree, input_types: PyTree, invert=False) -> PyTree:
         op = partial(self.pixelwise, invert=invert)
         full_op = jax.jit(jax.vmap(jax.vmap(op, [None, 0], 0), [None, 1], 1))
 
-        val = []
-        for input, type in zip(inputs, input_types):
-            current = None
-            if same_type(type, InputType.IMAGE):
-                # Linear Interpolation for Images
-                current = full_op(rng, input)
+        def transform_single(input, input_type):
+            if same_type(input_type, InputType.IMAGE):
+                return full_op(rng, input)
             else:
-                current = input
-            val.append(current)
-        return val
+                return input
+
+        return jax.tree_map(transform_single, inputs, input_types)
 
 
 class ColorspaceChain(ColorspaceTransformation, BaseChain):

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Union, Any, Sequence, Tuple, TypeVar
+from typing import Any, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -83,11 +83,3 @@ def hsv_to_rgb(hue: jnp.ndarray, saturation: jnp.ndarray, value: jnp.ndarray) ->
     k = jnp.mod(n + hue * 6, 6)
     f = value - value * saturation * jnp.maximum(0, jnp.minimum(jnp.minimum(k, 4-k), 1))
     return f
-
-
-T = TypeVar('T')
-def unpack_list_if_singleton(arbitrary_list: Sequence[T]) -> Union[T, Sequence[T]]:
-    if len(arbitrary_list) == 1:
-        return arbitrary_list[0]
-    else:
-        return tuple(arbitrary_list)

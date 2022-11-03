@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Union, List, Tuple
+from typing import Union, Tuple
 from abc import abstractmethod
 import math
 import warnings
@@ -20,7 +20,7 @@ import jax
 import jax.numpy as jnp
 from einops import rearrange
 
-from .base import Transformation, BaseChain, InputType, same_type
+from .base import Transformation, BaseChain, InputType, same_type, PyTree, RNGKey
 from . import utils
 
 
@@ -74,7 +74,7 @@ class LazyCoordinates:
         self._current_transform = M @ self._current_transform
         self._dirty = True
 
-    def apply_pixelwise_offsets(self, offsets):
+    def apply_pixelwise_offsets(self, offsets: jnp.ndarray):
         assert offsets.shape[1:] == self.final_shape
         if self._offsets == None:
             self._offsets = offsets
@@ -84,14 +84,12 @@ class LazyCoordinates:
 
 class GeometricTransformation(Transformation):
     @abstractmethod
-    def transform_coordinates(self, rng: jnp.ndarray, coordinates: LazyCoordinates, invert=False) -> LazyCoordinates:
+    def transform_coordinates(self, rng: RNGKey, coordinates: LazyCoordinates, invert=False) -> LazyCoordinates:
         return coordinates
 
-    def apply(self, rng: jnp.ndarray, inputs: jnp.ndarray, input_types: List[InputType]=None, invert=False) -> List[jnp.ndarray]:
-        if input_types is None:
-            input_types = self.input_types
-
-        input_shape  = inputs[0].shape[:2]
+    def apply(self, rng: RNGKey, inputs: PyTree, input_types: PyTree, invert=False) -> PyTree:
+        # TODO: How do we get the canonical image shape when there are multiple inputs?
+        input_shape  = jax.tree_util.tree_flatten(inputs)[0][0].shape[:2]
         output_shape = self.output_shape(input_shape)
         if invert:
             if not self.size_changing():
@@ -112,28 +110,25 @@ class GeometricTransformation(Transformation):
         self.transform_coordinates(rng, coordinates, invert)
         sampling_coords = coordinates.get_coordinate_grid()
 
-        val = []
-        for input, type in zip(inputs, input_types):
-            current = None
-            if same_type(type, InputType.IMAGE) or same_type(type, InputType.DENSE):
+        def transform_single(input, input_type):
+            if same_type(input_type, InputType.IMAGE) or same_type(input_type, InputType.DENSE):
                 # Linear Interpolation for Images
-                current = utils.resample_image(input, sampling_coords, order=1, mode='constant')
-            elif same_type(type, InputType.MASK):
+                return utils.resample_image(input, sampling_coords, order=1, mode='constant')
+            elif same_type(input_type, InputType.MASK):
                 # Nearest Interpolation for Masks
-                current = utils.resample_image(input, sampling_coords, order=0, mode='constant')
-            elif same_type(type, InputType.KEYPOINTS):
+                return utils.resample_image(input, sampling_coords, order=0, mode='constant')
+            elif same_type(input_type, InputType.KEYPOINTS):
+                return coordinates.apply_to_points(input)
+            elif same_type(input_type, InputType.CONTOUR):
                 current = coordinates.apply_to_points(input)
-            elif same_type(type, InputType.CONTOUR):
-                current = coordinates.apply_to_points(input)
-                current = jnp.where(jnp.linalg.det(coordinates._current_transform) < 0,
+                return jnp.where(jnp.linalg.det(coordinates._current_transform) < 0,
                     current[::-1],
                     current
                 )
+            else:
+                raise NotImplementedError(f"Cannot transform input of type {input_type} with {self.__class__.__name__}")
 
-            if current is None:
-                raise NotImplementedError(f"Cannot transform input of type {type} with {self.__class__.__name__}")
-            val.append(current)
-        return val
+        return jax.tree_map(transform_single, inputs, input_types)
 
     def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         return input_shape
