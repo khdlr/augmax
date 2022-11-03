@@ -36,7 +36,6 @@ RNGKey = Union[jax.random.KeyArray, None]
 
 
 def same_type(left_type, right_type):
-    print(left_type, isinstance(left_type, InputType))
     if isinstance(left_type, InputType):
         left_type = left_type.value
     if isinstance(right_type, InputType):
