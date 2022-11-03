@@ -10,6 +10,8 @@ release = ''
 
 needs_sphinx = '5.0.0'
 
+os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+
 sys.path.insert(0, os.path.abspath('..'))
 sys.path.append(os.path.abspath('sphinx_autoaug'))
 extensions = [

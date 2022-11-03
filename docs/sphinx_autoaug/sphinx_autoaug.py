@@ -11,6 +11,7 @@ import json
 import augmax
 from imageio import imread, imwrite
 from pathlib import Path
+jax.config.update('jax_platform_name', 'cpu')
 
 import inspect
 
