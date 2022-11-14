@@ -149,7 +149,7 @@ class RandomGamma(ColorspaceTransformation):
                     "Please call ByteToFloat first.")
 
         k1, k2 = jax.random.split(rng)
-        random_gamma = log_uniform(k1, minval=self.range[0], maxval=self.range[1])
+        random_gamma = log_uniform(k1, shape=pixel.shape, minval=self.range[0], maxval=self.range[1])
         gamma = jnp.where(jax.random.bernoulli(k2, self.probability), random_gamma, 1.0)
 
         if not invert:
@@ -309,6 +309,37 @@ class RandomGrayscale(ColorspaceTransformation):
                 F.to_grayscale(pixel),
                 pixel
         )
+
+
+class RandomChannelGamma(ColorspaceTransformation):
+    """Randomly adjusts each channel's gamma.
+
+    Args:
+        range (float, float): 
+        p (float): Probability of applying the transformation
+    """
+    def __init__(self,
+            range: Tuple[float, float]=(0.75, 1.33),
+            p: float = 0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
+        self.range = range
+        self.probability = p
+
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
+        if pixel.dtype != jnp.float32:
+            raise ValueError(f"RandomGamma can only be applied to float images, but the input is {pixel.dtype}. "
+                    "Please call ByteToFloat first.")
+
+        k1, k2 = jax.random.split(rng)
+        random_gamma = log_uniform(k1, minval=self.range[0], maxval=self.range[1])
+        gamma = jnp.where(jax.random.bernoulli(k2, self.probability), random_gamma, 1.0)
+
+        if not invert:
+            return jnp.power(pixel, gamma)
+        else:
+            return jnp.power(pixel, 1/gamma)
 
 
 class Solarization(ColorspaceTransformation):

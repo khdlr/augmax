@@ -6,8 +6,9 @@ Colorspace Transformations
 .. autoaug:: Normalize "flt"
 .. autoaug:: ChannelShuffle
 .. autoaug:: RandomGrayscale "flt"
-.. autoaug:: RandomGamma "flt"
 .. autoaug:: RandomBrightness "flt"
 .. autoaug:: RandomContrast "flt"
+.. autoaug:: RandomGamma "flt"
+.. autoaug:: RandomChannelGamma "flt"
 .. autoaug:: ColorJitter "flt"
 .. autoaug:: Solarization "flt"
