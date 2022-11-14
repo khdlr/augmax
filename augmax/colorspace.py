@@ -149,7 +149,7 @@ class RandomGamma(ColorspaceTransformation):
                     "Please call ByteToFloat first.")
 
         k1, k2 = jax.random.split(rng)
-        random_gamma = log_uniform(k1, shape=pixel.shape, minval=self.range[0], maxval=self.range[1])
+        random_gamma = log_uniform(k1, minval=self.range[0], maxval=self.range[1])
         gamma = jnp.where(jax.random.bernoulli(k2, self.probability), random_gamma, 1.0)
 
         if not invert:
@@ -333,7 +333,7 @@ class RandomChannelGamma(ColorspaceTransformation):
                     "Please call ByteToFloat first.")
 
         k1, k2 = jax.random.split(rng)
-        random_gamma = log_uniform(k1, minval=self.range[0], maxval=self.range[1])
+        random_gamma = log_uniform(k1, shape=pixel.shape, minval=self.range[0], maxval=self.range[1])
         gamma = jnp.where(jax.random.bernoulli(k2, self.probability), random_gamma, 1.0)
 
         if not invert:
