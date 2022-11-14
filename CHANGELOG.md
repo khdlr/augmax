@@ -1,5 +1,11 @@
 # Change log
 
+## augmax 0.3.1
+* Bugfixes:
+  * Fixed: Inverting a transformation without given input types
+  * Fixed: [RandomChannelGamma](https://augmax.readthedocs.io/en/latest/augmentations/colorspace.html#augmax.RandomChannelGamma) now correctly applies different gamma to each channel.
+
+
 ## augmax 0.3.0
 * Changes:
   * Arguments to the augment function can now be arbitrary [PyTrees](https://jax.readthedocs.io/en/latest/pytrees.html), this includes `list`s and `dict`s.
