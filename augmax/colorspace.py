@@ -135,7 +135,7 @@ class RandomGamma(ColorspaceTransformation):
         p (float): Probability of applying the transformation
     """
     def __init__(self,
-            range: Tuple[float, float]=(0.75, 1.33),
+            range: Tuple[float, float]=(0.25, 4.0),
             p: float = 0.5,
             input_types=None
     ):
@@ -319,7 +319,7 @@ class RandomChannelGamma(ColorspaceTransformation):
         p (float): Probability of applying the transformation
     """
     def __init__(self,
-            range: Tuple[float, float]=(0.75, 1.33),
+            range: Tuple[float, float]=(0.25, 4.0),
             p: float = 0.5,
             input_types=None
     ):
