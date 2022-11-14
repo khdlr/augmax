@@ -375,3 +375,25 @@ class Solarization(ColorspaceTransformation):
         )
         return solarized
 
+
+class ChannelDrop(ColorspaceTransformation):
+    """Randomly drops a channelf from the image
+   
+    Args:
+        p (float): Probability of applying the transformation
+    """
+    def __init__(self,
+            p: float = 0.5,
+            input_types=None
+    ):
+        super().__init__(input_types)
+        self.probability = p
+
+    def pixelwise(self, rng: jnp.ndarray, pixel: jnp.ndarray, invert=False) -> jnp.ndarray:
+        k1, k2 = jax.random.split(rng)
+        C, = pixel.shape
+        do_apply = jax.random.bernoulli(k1, self.probability)
+        apply_channel = jax.random.randint(k1, [], minval=0, maxval=C)
+
+        return jnp.where(do_apply & (jnp.arange(C) == apply_channel), 0.0, pixel)
+

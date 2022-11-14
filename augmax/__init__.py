@@ -19,7 +19,8 @@ from .geometric import GeometricTransformation, GeometricChain, HorizontalFlip, 
         CenterCrop, Warp, Crop, Translate, Resize, RandomCrop, Rotate90, RandomSizedCrop
 
 from .colorspace import ColorspaceTransformation, ColorspaceChain, ByteToFloat, Normalize, ChannelShuffle, \
-        RandomGrayscale, RandomGamma, RandomBrightness, RandomContrast, ColorJitter, Solarization, RandomChannelGamma
+        RandomGrayscale, RandomGamma, RandomBrightness, RandomContrast, ColorJitter, Solarization, RandomChannelGamma, \
+        ChannelDrop
 
 from .imagelevel import GridShuffle, Blur, GaussianBlur
 
