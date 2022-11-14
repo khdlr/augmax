@@ -59,8 +59,16 @@ class Transformation(ABC):
         augmented = self.apply(rng, inputs, input_types)
         return augmented
 
-    def invert(self, rng: jnp.ndarray, inputs: PyTree) -> PyTree:
-        augmented = self.apply(rng, inputs, self.input_types, invert=True)
+    def invert(self, rng: jnp.ndarray, inputs: PyTree, input_types: PyTree=None) -> PyTree:
+        try:
+          jax.tree_map(lambda _x, _y: None, inputs, self.input_types)
+        except ValueError:
+            raise ValueError(f"PyTrees `inputs` and `input_types` are incompatible for Augmentation")
+        if input_types is None:
+          input_types = self.input_types
+        if input_types is None:
+          input_types = jax.tree_map(lambda _: InputType.IMAGE, inputs)
+        augmented = self.apply(rng, inputs, input_types, invert=True)
         return augmented
 
     @abstractmethod
