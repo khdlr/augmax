@@ -125,6 +125,8 @@ class GeometricTransformation(Transformation):
                     current[::-1],
                     current
                 )
+            elif same_type(input_type, InputType.METADATA):
+                return input
             else:
                 raise NotImplementedError(f"Cannot transform input of type {input_type} with {self.__class__.__name__}")
 

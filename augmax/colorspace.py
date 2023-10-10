@@ -237,7 +237,7 @@ class ColorJitter(ColorspaceTransformation):
         self.saturation = saturation
         self.hue = hue
         self.probability = p
-        
+
         self.keys_needed = sum(1 if val > 0 else 0
                 for val in [brightness, contrast, saturation, hue])
         if p < 1:

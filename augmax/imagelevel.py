@@ -71,6 +71,8 @@ class GridShuffle(ImageLevelTransformation):
                     image = jax.random.permutation(key2, image)
                 image = rearrange(image, '(gy gx) h w c -> (gy h) (gx w) c', gx=gx, gy=gy)
                 return jnp.where(do_apply, image, raw_image)
+            elif same_type(input_type, InputType.METADATA):
+              return input
             else:
                 raise NotImplementedError(f"GridShuffle for {input_type} not yet implemented")
         return jax.tree_map(transform_single, inputs, input_types)
