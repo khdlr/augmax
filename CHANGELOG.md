@@ -1,5 +1,11 @@
 # Change log
 
+## augmax 0.3.2
+* Fixes:
+  * Fixed: Passing differently sized inputs to geometric transforms used to produce weird behaviour. Now this is correctly detected and a more helpful error message is thrown.
+  * Fixed: Typing hints updated to be compatible with jax >=0.4.24
+
+
 ## augmax 0.3.1
 * Bugfixes:
   * Fixed: Inverting a transformation without given input types
