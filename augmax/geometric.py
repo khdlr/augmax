@@ -18,6 +18,7 @@ import warnings
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from einops import rearrange
 
 from .base import Transformation, BaseChain, InputType, same_type, PyTree, RNGKey
@@ -89,7 +90,21 @@ class GeometricTransformation(Transformation):
 
     def apply(self, rng: RNGKey, inputs: PyTree, input_types: PyTree, invert=False) -> PyTree:
         # TODO: How do we get the canonical image shape when there are multiple inputs?
-        input_shape  = jax.tree_util.tree_flatten(inputs)[0][0].shape[:2]
+        input_shapes = set()
+        def extract_shape_if_imagelike(inp, typ):
+          if same_type(typ, InputType.IMAGE) \
+              or same_type(typ, InputType.MASK) \
+              or same_type(typ, InputType.DENSE):
+            return np.array(inp.shape[:2])
+          else:
+            return np.array([])
+        shapes = jax.tree_map(extract_shape_if_imagelike, inputs, input_types)
+        for shape in jax.tree_util.tree_flatten(shapes)[0]:
+          if len(shape) == 2:
+            input_shapes.add(tuple(shape))
+        if len(input_shapes) != 1:
+          raise ValueError(f'Ambiguous input shape for geometric Transformations, got {shapes}')
+        input_shape, = input_shapes
         output_shape = self.output_shape(input_shape)
         if invert:
             if not self.size_changing():
