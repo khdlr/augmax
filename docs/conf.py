@@ -2,7 +2,7 @@ import sys
 import os
 
 project = 'Augmax'
-copyright = '2021, Konrad Heidler. Jax, NumPy and SciPy documentation are copyright to the respective authors'
+copyright = '2024, Konrad Heidler. Jax, NumPy and SciPy documentation are copyright to the respective authors'
 author = 'Konrad Heidler'
 
 version = ''
