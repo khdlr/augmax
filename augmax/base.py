@@ -33,7 +33,7 @@ PyTree = Union[jnp.ndarray,
                Dict[Hashable, 'PyTree'],
                InputType,
                None]
-RNGKey = Union[jax.random.KeyArray, None]
+RNGKey = Union[jax.typing.ArrayLike, None]
 
 
 def same_type(left_type, right_type):
