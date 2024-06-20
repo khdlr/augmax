@@ -17,6 +17,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import warnings
 
 from .base import Transformation, BaseChain, InputType, same_type, PyTree, RNGKey
@@ -83,8 +84,8 @@ class Normalize(ColorspaceTransformation):
         std (jnp.ndarray): Standard deviation for each channel
     """
     def __init__(self,
-            mean: jnp.ndarray = jnp.array([0.485, 0.456, 0.406]),
-            std: jnp.ndarray = jnp.array([0.229, 0.224, 0.225]),
+            mean: jnp.ndarray = np.array([0.485, 0.456, 0.406]),
+            std: jnp.ndarray = np.array([0.229, 0.224, 0.225]),
             input_types=None
     ):
         super().__init__(input_types)

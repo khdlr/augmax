@@ -26,7 +26,7 @@ from . import utils
 
 
 class LazyCoordinates:
-    _current_transform: jnp.ndarray = jnp.eye(3)
+    _current_transform: jnp.ndarray = np.eye(3)
     _offsets: Union[jnp.ndarray, None] = None
     input_shape: Tuple[int, int]
     current_shape: Tuple[int, int]
