@@ -1,5 +1,9 @@
 # Change log
 
+## augmax 0.3.3
+* Fixes:
+  * Fixed: No longer running jax code on package import. Thanks @kvablack!
+
 ## augmax 0.3.2
 * Fixes:
   * Fixed: Passing differently sized inputs to geometric transforms used to produce weird behaviour. Now this is correctly detected and a more helpful error message is thrown.
