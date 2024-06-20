@@ -30,6 +30,7 @@ setup(
     python_requires='>=3.6',
     install_requires = [
         'jax>=0.1',
+        'numpy>=1.22',
         'einops>=0.3'
     ],
     long_description=long_description,
