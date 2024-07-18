@@ -183,7 +183,7 @@ class RandomBrightness(ColorspaceTransformation):
 
         k1, k2 = jax.random.split(rng)
         random_brightness = jax.random.uniform(k1, minval=self.minval, maxval=self.maxval)
-        brightness = jnp.where(jax.random.bernoulli(k2, self.probability), random_brightness, 1.0)
+        brightness = jnp.where(jax.random.bernoulli(k2, self.probability), random_brightness, 0.0)
         # cf. https://gitlab.gnome.org/GNOME/gimp/-/blob/master/app/operations/gimpoperationbrightnesscontrast.c
 
         return F.adjust_brightness(pixel, brightness, invert=invert)
