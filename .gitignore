@@ -3,3 +3,5 @@ docs/generated_imgs/
 *.svg
 .ipynb_checkpoints/
 .directory
+dist/
+augmax.egg-info/
