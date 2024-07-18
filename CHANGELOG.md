@@ -1,5 +1,9 @@
 # Change log
 
+## augmax 0.3.4
+* Fixes:
+  * Fixed: Fixed RandomBrightness color adjustment for cases when the augmentation was not meant to be applied
+
 ## augmax 0.3.3
 * Fixes:
   * Fixed: No longer running jax code on package import. Thanks @kvablack!
