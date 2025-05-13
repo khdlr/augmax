@@ -98,7 +98,7 @@ class GeometricTransformation(Transformation):
             return np.array(inp.shape[:2])
           else:
             return np.array([])
-        shapes = jax.tree_map(extract_shape_if_imagelike, inputs, input_types)
+        shapes = jax.tree_util.tree_map(extract_shape_if_imagelike, inputs, input_types)
         for shape in jax.tree_util.tree_flatten(shapes)[0]:
           if len(shape) == 2:
             input_shapes.add(tuple(shape))
@@ -145,7 +145,7 @@ class GeometricTransformation(Transformation):
             else:
                 raise NotImplementedError(f"Cannot transform input of type {input_type} with {self.__class__.__name__}")
 
-        return jax.tree_map(transform_single, inputs, input_types)
+        return jax.tree_util.tree_map(transform_single, inputs, input_types)
 
     def output_shape(self, input_shape: Tuple[int, int]) -> Tuple[int, int]:
         return input_shape

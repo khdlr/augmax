@@ -52,9 +52,9 @@ class Transformation(ABC):
         if input_types is None:
           input_types = self.input_types
         if input_types is None:
-          input_types = jax.tree_map(lambda _: InputType.IMAGE, inputs)
+          input_types = jax.tree_util.tree_map(lambda _: InputType.IMAGE, inputs)
         try:
-          jax.tree_map(lambda _x, _y: None, inputs, self.input_types)
+          jax.tree_util.tree_map(lambda _x, _y: None, inputs, self.input_types)
         except ValueError:
             raise ValueError(f"PyTrees `inputs` and `input_types` are incompatible for Augmentation")
 
@@ -65,9 +65,9 @@ class Transformation(ABC):
         if input_types is None:
           input_types = self.input_types
         if input_types is None:
-          input_types = jax.tree_map(lambda _: InputType.IMAGE, inputs)
+          input_types = jax.tree_util.tree_map(lambda _: InputType.IMAGE, inputs)
         try:
-          jax.tree_map(lambda _x, _y: None, inputs, self.input_types)
+          jax.tree_util.tree_map(lambda _x, _y: None, inputs, self.input_types)
         except ValueError:
             raise ValueError(f"PyTrees `inputs` and `input_types` are incompatible for Augmentation")
         augmented = self.apply(rng, inputs, input_types, invert=True)
