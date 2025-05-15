@@ -1,6 +1,7 @@
 myst_parser
 myst-nb
 matplotlib
+sphinx_rtd_theme
 
 imageio
 jax[cpu]
