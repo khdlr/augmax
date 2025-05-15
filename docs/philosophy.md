@@ -65,7 +65,7 @@ the output pixel $(x', y')$ originates from the input pixel $(x' - d_x, y' - d_y
 Mathematically speaking, we are calculating the *preimage* of each pixel's location under the augmentation chain.
 Using these transformed coordinates,
 a simple texture sampling step is then used to sample the output pixels directly from the input image
-via [`jax.scipy.ndimage.map_coordinates`](jax:jax.scipy.ndimage.map_coordinates).
+via [`jax.scipy.ndimage.map_coordinates`](jax.scipy.ndimage.map_coordinates).
 The important difference to note with this approach is that augmax will
 need to internally reverse the order of operations,
 as we start from output coordinates and work our way back to the pixels of the input image.

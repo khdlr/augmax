@@ -29,9 +29,10 @@ extensions = [
 intersphinx_mapping = {
   "python": ("https://docs.python.org/3/", None),
   "numpy": ("https://numpy.org/doc/stable/", None),
-  "scipy": ("https://docs.scipy.org/doc/scipy/reference/", None),
+  "scipy": ("https://docs.scipy.org/doc/scipy/", None),
   "jax": ("https://docs.jax.dev/en/latest/", None),
 }
+intersphinx_disabled_reftypes = ["*"]
 
 source_suffix = [".rst", ".ipynb", ".md"]
 

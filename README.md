@@ -3,7 +3,7 @@
 
 Augmax is an image data augmentation framework supporting efficiently-composable transformations
 with support for JAX function transformations.
-Its strengths are efficient execution of complex augmentation pipelines and batched data augmentation on the GPU/TPU via the use of [`jax.jit`](jax:jax-jit) and `jax.vmap`.
+Its strengths are efficient execution of complex augmentation pipelines and batched data augmentation on the GPU/TPU via the use of [`jax.jit`](jax-jit) and `jax.vmap`.
 
 In existing data augmentation frameworks,
 each transformation is executed separately,
