@@ -1,5 +1,12 @@
 # Change log
 
+## augmax 0.4.0
+* Fixes:
+  * Change jax.tree_map to jax.tree_util.tree_map. (#11 by @mdenil)
+* Changes:
+  * Now using `uv` for project management and building the package
+
+
 ## augmax 0.3.4
 * Fixes:
   * Fixed: Fixed RandomBrightness color adjustment for cases when the augmentation was not meant to be applied

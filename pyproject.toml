@@ -12,6 +12,23 @@ dependencies = [
     "jax>=0.1",
     "numpy>=2.0.0",
 ]
+license = "Apache-2.0"
+classifiers=[
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+]
+
+[project.urls]
+Repository = "https://github.com/khdlr/augmax"
+Issues = "https://github.com/khdlr/augmax/issues"
+Documentation = "https://augmax.readthedocs.io/en/latest/"
 
 [build-system]
 requires = ["uv_build>=0.7.3,<0.8", "uv-dynamic-versioning"]
