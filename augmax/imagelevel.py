@@ -75,7 +75,7 @@ class GridShuffle(ImageLevelTransformation):
               return input
             else:
                 raise NotImplementedError(f"GridShuffle for {input_type} not yet implemented")
-        return jax.tree_map(transform_single, inputs, input_types)
+        return jax.tree_util.tree_map(transform_single, inputs, input_types)
 
 
 class _ConvolutionalBlur(ImageLevelTransformation):
@@ -108,7 +108,7 @@ class _ConvolutionalBlur(ImageLevelTransformation):
             else:
                 return input
 
-        return jax.tree_map(transform_single, inputs, input_types)
+        return jax.tree_util.tree_map(transform_single, inputs, input_types)
 
 
 class Blur(_ConvolutionalBlur):

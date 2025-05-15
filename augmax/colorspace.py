@@ -40,7 +40,7 @@ class ColorspaceTransformation(Transformation):
             else:
                 return input
 
-        return jax.tree_map(transform_single, inputs, input_types)
+        return jax.tree_util.tree_map(transform_single, inputs, input_types)
 
 
 class ColorspaceChain(ColorspaceTransformation, BaseChain):
