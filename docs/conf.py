@@ -23,6 +23,7 @@ extensions = [
   "sphinx.ext.viewcode",
   "sphinx_autoaug",
   "IPython.sphinxext.ipython_console_highlighting",
+  "sphinx_rtd_theme",
 ]
 
 intersphinx_mapping = {
