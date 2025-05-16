@@ -1,5 +1,8 @@
 # Change log
 
+## augmax 0.4.1
+* Changes: Relaxed `numpy` version requirement
+
 ## augmax 0.4.0
 * Fixes:
   * Change jax.tree_map to jax.tree_util.tree_map. (#11 by @mdenil)

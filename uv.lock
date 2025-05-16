@@ -11,7 +11,7 @@ resolution-markers = [
 
 [[package]]
 name = "augmax"
-version = "0.4.0"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "einops" },
@@ -25,7 +25,7 @@ dependencies = [
 requires-dist = [
     { name = "einops", specifier = ">=0.3" },
     { name = "jax", specifier = ">=0.1" },
-    { name = "numpy", specifier = ">=2.0.0" },
+    { name = "numpy", specifier = ">=1.22" },
 ]
 
 [[package]]
